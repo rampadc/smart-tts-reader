@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Reader",
+  "id": "smart-reader-extension",
+  "version": "1.0",
+  "description": "Select HTML, process with Gemini AI, and listen via TTS.",
+  "permissions": ["activeTab", "scripting", "contextMenus", "storage", "tabs", "notifications"],
+  "host_permissions": ["https://generativelanguage.googleapis.com/*", "http://localhost:*/*", "https://*/*"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "48": "icons/icon-48.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "smart_reader_gemini@yourdomain.com"
+    }
+  }
+}

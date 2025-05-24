@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Smart Reader</title>
+        <link rel="stylesheet" href="popup.css" />
+    </head>
+    <body>
+        <div class="container">
+            <h1>Smart Reader</h1>
+
+            <div class="text-selection">
+                <button id="selectHtmlBlock">Select HTML Block</button>
+                <div id="selectedTextDisplay" class="selected-text-display">
+                    No content selected yet. Click "Select HTML Block" to choose
+                    content from the page.
+                </div>
+            </div>
+
+            <div class="api-settings">
+                <h2>Gemini AI Configuration</h2>
+                <label for="geminiApiUrl">Gemini API URL:</label>
+                <input
+                    type="text"
+                    id="geminiApiUrl"
+                    placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+                />
+
+                <label for="geminiApiKey">Gemini API Key:</label>
+                <input
+                    type="password"
+                    id="geminiApiKey"
+                    placeholder="Enter your Gemini API key"
+                />
+
+                <button id="saveGeminiConfig">Save Gemini Configuration</button>
+                <div id="geminiConfigStatus" class="status-message"></div>
+            </div>
+
+            <div class="tts-settings">
+                <h2>TTS Configuration</h2>
+                <label for="ttsApiUrl">TTS API URL:</label>
+                <input
+                    type="text"
+                    id="ttsApiUrl"
+                    placeholder="http://localhost:8880/v1"
+                />
+
+                <label for="ttsApiKey">TTS API Key:</label>
+                <input type="text" id="ttsApiKey" placeholder="not-needed" />
+
+                <label for="voice">Voice:</label>
+                <input type="text" id="voice" placeholder="af_bella+af_sky" />
+
+                <label for="model">Model:</label>
+                <input type="text" id="model" placeholder="kokoro" />
+
+                <label for="speechSpeed">Speech Speed (0.1-10.0):</label>
+                <input
+                    type="number"
+                    id="speechSpeed"
+                    min="0.1"
+                    max="10.0"
+                    step="0.1"
+                    placeholder="1.0"
+                />
+
+                <label class="checkbox-label">
+                    <input type="checkbox" id="streamingMode" />
+                    Enable Streaming Mode
+                </label>
+
+                <button id="saveTtsConfig">Save TTS Configuration</button>
+                <button id="stopPlayback">Stop Playback</button>
+                <div id="ttsConfigStatus" class="status-message"></div>
+            </div>
+
+            <div id="status" class="status-message"></div>
+            <div id="error" class="error-message"></div>
+        </div>
+
+        <script src="popup.js"></script>
+    </body>
+</html>

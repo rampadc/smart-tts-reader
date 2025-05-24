@@ -1,0 +1,424 @@
+document.addEventListener("DOMContentLoaded", async () => {
+  const selectedTextDisplay = document.getElementById("selectedTextDisplay");
+  const selectHtmlBlockButton = document.getElementById("selectHtmlBlock");
+  const statusDiv = document.getElementById("status");
+  const errorDiv = document.getElementById("error");
+
+  const geminiApiUrlInput = document.getElementById("geminiApiUrl");
+  const geminiApiKeyInput = document.getElementById("geminiApiKey");
+  const saveGeminiConfigButton = document.getElementById("saveGeminiConfig");
+  const geminiConfigStatusDiv = document.getElementById("geminiConfigStatus");
+
+  const ttsApiUrlInput = document.getElementById("ttsApiUrl");
+  const ttsApiKeyInput = document.getElementById("ttsApiKey");
+  const voiceInput = document.getElementById("voice");
+  const modelInput = document.getElementById("model");
+  const speechSpeedInput = document.getElementById("speechSpeed");
+  const streamingModeInput = document.getElementById("streamingMode");
+  const saveTtsConfigButton = document.getElementById("saveTtsConfig");
+  const stopPlaybackButton = document.getElementById("stopPlayback");
+  const ttsConfigStatusDiv = document.getElementById("ttsConfigStatus");
+
+  console.log("Popup: DOMContentLoaded event fired.");
+
+  if (selectHtmlBlockButton) {
+    console.log(
+      'Popup: "Select HTML Block" button element found successfully.',
+    );
+  } else {
+    console.error(
+      'Popup: ERROR: "Select HTML Block" button element NOT FOUND! Check popup.html ID.',
+    );
+  }
+
+  // Load saved Gemini API configuration
+  const storage = await browser.storage.sync.get([
+    "geminiApiKey",
+    "geminiApiUrl",
+  ]);
+  const storedApiKey = storage.geminiApiKey;
+  const storedApiUrl = storage.geminiApiUrl;
+
+  // Set API URL (with default if not set)
+  const defaultApiUrl =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  geminiApiUrlInput.value = storedApiUrl || defaultApiUrl;
+
+  // Set API Key
+  if (storedApiKey) {
+    geminiApiKeyInput.value = storedApiKey;
+    geminiConfigStatusDiv.textContent = "Configuration loaded.";
+    geminiConfigStatusDiv.style.color = "green";
+  } else {
+    geminiApiKeyInput.value = ""; // No default API key
+    geminiConfigStatusDiv.textContent =
+      "Please enter your Gemini API configuration.";
+    geminiConfigStatusDiv.style.color = "gray";
+  }
+
+  // Load saved TTS configuration
+  const ttsStorage = await browser.storage.local.get([
+    "ttsApiUrl",
+    "ttsApiKey",
+    "speechSpeed",
+    "voice",
+    "model",
+    "streamingMode",
+  ]);
+  ttsApiUrlInput.value = ttsStorage.ttsApiUrl || "http://localhost:8880/v1";
+  ttsApiKeyInput.value = ttsStorage.ttsApiKey || "not-needed";
+  voiceInput.value = ttsStorage.voice || "af_bella+af_sky";
+  modelInput.value = ttsStorage.model || "kokoro";
+  speechSpeedInput.value = ttsStorage.speechSpeed || 1.0;
+  streamingModeInput.checked =
+    ttsStorage.streamingMode !== undefined ? ttsStorage.streamingMode : true;
+
+  if (ttsStorage.ttsApiUrl) {
+    ttsConfigStatusDiv.textContent = "TTS configuration loaded.";
+    ttsConfigStatusDiv.style.color = "green";
+  } else {
+    ttsConfigStatusDiv.textContent = "Please configure TTS settings.";
+    ttsConfigStatusDiv.style.color = "gray";
+  }
+  console.log(
+    "Popup: Gemini configuration initialized - API URL:",
+    geminiApiUrlInput.value,
+    "API Key:",
+    geminiApiKeyInput.value ? "****" : "empty",
+  );
+
+  saveGeminiConfigButton.addEventListener("click", async () => {
+    const apiKey = geminiApiKeyInput.value.trim();
+    const apiUrl = geminiApiUrlInput.value.trim();
+
+    if (!apiKey) {
+      geminiConfigStatusDiv.textContent = "API key cannot be empty.";
+      geminiConfigStatusDiv.style.color = "red";
+      console.warn("Popup: Attempted to save empty API key.");
+      return;
+    }
+
+    if (!apiUrl) {
+      geminiConfigStatusDiv.textContent = "API URL cannot be empty.";
+      geminiConfigStatusDiv.style.color = "red";
+      console.warn("Popup: Attempted to save empty API URL.");
+      return;
+    }
+
+    await browser.storage.sync.set({
+      geminiApiKey: apiKey,
+      geminiApiUrl: apiUrl,
+    });
+    geminiConfigStatusDiv.textContent = "Configuration saved!";
+    geminiConfigStatusDiv.style.color = "green";
+    console.log(
+      "Popup: Saved Gemini configuration - URL:",
+      apiUrl,
+      "API Key:",
+      "****",
+    );
+  });
+
+  saveTtsConfigButton.addEventListener("click", async () => {
+    const ttsApiUrl = ttsApiUrlInput.value.trim();
+    const ttsApiKey = ttsApiKeyInput.value.trim();
+    const voice = voiceInput.value.trim();
+    const model = modelInput.value.trim();
+    const speechSpeed = parseFloat(speechSpeedInput.value);
+    const streamingMode = streamingModeInput.checked;
+
+    if (!ttsApiUrl) {
+      ttsConfigStatusDiv.textContent = "TTS API URL cannot be empty.";
+      ttsConfigStatusDiv.style.color = "red";
+      console.warn("Popup: Attempted to save empty TTS API URL.");
+      return;
+    }
+
+    if (isNaN(speechSpeed) || speechSpeed < 0.1 || speechSpeed > 10.0) {
+      ttsConfigStatusDiv.textContent =
+        "Speech speed must be between 0.1 and 10.0.";
+      ttsConfigStatusDiv.style.color = "red";
+      console.warn("Popup: Invalid speech speed value.");
+      return;
+    }
+
+    await browser.storage.local.set({
+      ttsApiUrl: ttsApiUrl,
+      ttsApiKey: ttsApiKey,
+      voice: voice,
+      model: model,
+      speechSpeed: speechSpeed,
+      streamingMode: streamingMode,
+    });
+    ttsConfigStatusDiv.textContent = "TTS configuration saved!";
+    ttsConfigStatusDiv.style.color = "green";
+    console.log("Popup: Saved TTS configuration");
+  });
+
+  stopPlaybackButton.addEventListener("click", async () => {
+    try {
+      await browser.runtime.sendMessage({ action: "stopPlayback" });
+      console.log("Popup: Stop playback message sent.");
+    } catch (e) {
+      console.error("Popup: Error sending stop playback message:", e);
+    }
+  });
+
+  // Add test TTS button for debugging
+  const testTtsButton = document.createElement("button");
+  testTtsButton.textContent = "Test TTS";
+  testTtsButton.style.marginTop = "8px";
+  testTtsButton.addEventListener("click", async () => {
+    try {
+      ttsConfigStatusDiv.textContent = "Testing TTS...";
+      ttsConfigStatusDiv.style.color = "blue";
+
+      console.log("Popup: Starting TTS test...");
+      console.log("Popup: Sending test message to background script");
+
+      const response = await browser.runtime.sendMessage({
+        action: "speakText",
+        text: "This is a test of the TTS system.",
+      });
+
+      console.log("Popup: TTS test response received:", response);
+      console.log("Popup: TTS test response type:", typeof response);
+
+      if (response && response.success) {
+        ttsConfigStatusDiv.textContent = "TTS test successful!";
+        ttsConfigStatusDiv.style.color = "green";
+        console.log("Popup: TTS test reported success");
+      } else if (response && response.error) {
+        ttsConfigStatusDiv.textContent = "TTS test failed: " + response.error;
+        ttsConfigStatusDiv.style.color = "red";
+        console.error("Popup: TTS test failed with error:", response.error);
+      } else {
+        ttsConfigStatusDiv.textContent = "TTS test - no response received";
+        ttsConfigStatusDiv.style.color = "orange";
+        console.error("Popup: TTS test - invalid response:", response);
+      }
+    } catch (e) {
+      ttsConfigStatusDiv.textContent = "TTS test error: " + e.message;
+      ttsConfigStatusDiv.style.color = "red";
+      console.error("Popup: TTS test error:", e);
+      console.error("Popup: TTS test error stack:", e.stack);
+    }
+  });
+
+  // Insert test button after stop button
+  stopPlaybackButton.parentNode.insertBefore(testTtsButton, ttsConfigStatusDiv);
+
+  // The popup will ALWAYS ask the background script for the current selected text.
+  // This initial call might return empty if no block has been selected yet.
+  try {
+    console.log(
+      "Popup: Requesting current selected text/HTML block from background on load.",
+    );
+    const currentSelection = await browser.runtime.sendMessage({
+      action: "getCurrentSelection",
+    });
+
+    if (currentSelection && currentSelection.selectedText) {
+      statusDiv.textContent = "Text loaded for processing.";
+      errorDiv.textContent = "";
+      console.log(
+        "Popup: Loaded text into display:",
+        currentSelection.selectedText,
+      );
+      console.log(
+        "Popup: Background reports full HTML available:",
+        currentSelection.selectedHtml !== "",
+      );
+      selectedTextDisplay.textContent = currentSelection.selectedText;
+      await processLoadedText(
+        currentSelection.selectedText,
+        geminiApiKeyInput.value.trim(),
+        geminiApiUrlInput.value.trim(),
+      ); // Call processing
+    } else {
+      selectedTextDisplay.textContent =
+        'No content selected yet. Click "Select HTML Block" to choose content from the page.';
+      statusDiv.textContent = "Select an HTML block to begin.";
+      console.log(
+        "Popup: No current selection found in background on initial load. Awaiting user action.",
+      );
+    }
+  } catch (err) {
+    console.error(
+      "Popup: Error getting current selection from background:",
+      err,
+    );
+  }
+
+  window.updateSelection = async function (selectedText, selectedHtml) {
+    console.log("Popup: updateSelection called directly by background script.");
+    selectedTextDisplay.textContent = selectedText;
+    statusDiv.textContent = "HTML block selected. Processing...";
+    errorDiv.textContent = "";
+    console.log(
+      "Popup: Text display updated by background script with newly selected HTML block text:",
+      selectedText,
+    );
+    await processLoadedText(
+      selectedText,
+      geminiApiKeyInput.value.trim(),
+      geminiApiUrlInput.value.trim(),
+    ); // Call processing
+  };
+
+  selectHtmlBlockButton.addEventListener("click", async () => {
+    console.log('Popup: "Select HTML Block" button clicked - Listener Fired!');
+    statusDiv.textContent =
+      "Click on an HTML element on the page to select it...";
+    errorDiv.textContent = "";
+    console.log(
+      'Popup: "Select HTML Block" button clicked. Notifying background this is popup-initiated.',
+    );
+
+    // Notify background that this selection is popup-initiated
+    await browser.runtime.sendMessage({ action: "initiatePopupSelection" });
+
+    console.log("Popup: Sending activation message to content script.");
+    const [tab] = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    await browser.tabs.sendMessage(tab.id, { action: "activateSelectionMode" });
+    window.close(); // Close the popup so the user can interact with the page
+    console.log('Popup: Popup closed after "Select HTML Block" button click.');
+  });
+
+  async function processLoadedText(textToProcess, geminiApiKey, geminiApiUrl) {
+    console.log(
+      "Popup: Initiating automatic process with text:",
+      textToProcess.substring(0, 50) + "...",
+    );
+    console.log(
+      "Popup: Using Gemini API key:",
+      geminiApiKey ? "****" : "empty",
+    );
+    console.log("Popup: Using Gemini API URL:", geminiApiUrl);
+
+    if (!textToProcess) {
+      errorDiv.textContent = "No text to process.";
+      statusDiv.textContent = "";
+      console.warn(
+        "Popup: textToProcess is empty. Aborting automatic process.",
+      );
+      return;
+    }
+
+    if (!geminiApiKey) {
+      errorDiv.textContent = "Please enter and save a Gemini API key.";
+      statusDiv.textContent = "";
+      console.warn("Popup: geminiApiKey is empty. Aborting automatic process.");
+      return;
+    }
+
+    if (!geminiApiUrl) {
+      errorDiv.textContent = "Please enter and save a Gemini API URL.";
+      statusDiv.textContent = "";
+      console.warn("Popup: geminiApiUrl is empty. Aborting automatic process.");
+      return;
+    }
+
+    statusDiv.textContent = "Processing text with Gemini AI...";
+    errorDiv.textContent = "";
+
+    console.log(
+      'Popup: Automatically attempting to send "processText" message to background script.',
+    );
+    try {
+      const response = await browser.runtime.sendMessage({
+        action: "processText",
+        text: textToProcess,
+        geminiApiKey: geminiApiKey,
+        geminiApiUrl: geminiApiUrl,
+      });
+      console.log(
+        'Popup: "processText" message sent to background script for automatic process.',
+      );
+
+      if (response && response.error) {
+        errorDiv.textContent = "Error: " + response.error;
+        statusDiv.textContent = "";
+        console.error(
+          "Popup: Received error response from background script for automatic processText:",
+          response.error,
+        );
+      } else if (response && response.processedText) {
+        statusDiv.textContent = "Sending to TTS for speech...";
+        console.log(
+          "Popup: Received processed text from background script for automatic process:",
+          response.processedText,
+        );
+        console.log(
+          "Popup: processedText length:",
+          response.processedText.length,
+        );
+        console.log("Popup: About to call speakText with full text");
+
+        try {
+          console.log(
+            "Popup: Sending speakText message to background script...",
+          );
+          console.log("Popup: speakText payload:", {
+            action: "speakText",
+            text: response.processedText.substring(0, 100) + "...",
+          });
+
+          const ttsResponse = await browser.runtime.sendMessage({
+            action: "speakText",
+            text: response.processedText,
+          });
+
+          console.log("Popup: TTS message sent, waiting for response...");
+          console.log("Popup: Received TTS response:", ttsResponse);
+          console.log("Popup: TTS response type:", typeof ttsResponse);
+          console.log(
+            "Popup: TTS response keys:",
+            ttsResponse ? Object.keys(ttsResponse) : "null/undefined",
+          );
+
+          if (ttsResponse && ttsResponse.success) {
+            statusDiv.textContent = "Playing audio via TTS...";
+            console.log("Popup: TTS reported success, audio should be playing");
+          } else if (ttsResponse && ttsResponse.error) {
+            statusDiv.textContent = "";
+            errorDiv.textContent = "TTS Error: " + ttsResponse.error;
+            console.error("Popup: TTS reported error:", ttsResponse.error);
+          } else {
+            statusDiv.textContent = "";
+            errorDiv.textContent =
+              "TTS: No valid response received from background script";
+            console.error("Popup: TTS response was invalid:", ttsResponse);
+          }
+        } catch (ttsError) {
+          statusDiv.textContent = "";
+          errorDiv.textContent = "TTS Error: " + ttsError.message;
+          console.error("Popup: TTS exception caught:", ttsError);
+          console.error("Popup: TTS exception stack:", ttsError.stack);
+        }
+        console.log('Popup: "speakText" message processing complete.');
+        // Optional: Close popup automatically after speaking, or keep open for status
+        // setTimeout(() => window.close(), 3000);
+      } else {
+        errorDiv.textContent = "No response received from background script.";
+        statusDiv.textContent = "";
+        console.error(
+          "Popup: Undefined or invalid response from background script:",
+          response,
+        );
+      }
+    } catch (e) {
+      errorDiv.textContent =
+        "An unexpected error occurred during automatic processing: " +
+        e.message;
+      statusDiv.textContent = "";
+      console.error(
+        "Popup: Uncaught error during automatic message sending or processing:",
+        e,
+      );
+    }
+  }
+});
