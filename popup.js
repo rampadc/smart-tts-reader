@@ -6,8 +6,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const geminiApiUrlInput = document.getElementById("geminiApiUrl");
   const geminiApiKeyInput = document.getElementById("geminiApiKey");
-  const saveGeminiConfigButton = document.getElementById("saveGeminiConfig");
-  const geminiConfigStatusDiv = document.getElementById("geminiConfigStatus");
+  const ollamaApiUrlInput = document.getElementById("ollamaApiUrl");
+  const ollamaModelInput = document.getElementById("ollamaModel");
+  const geminiRadio = document.getElementById("geminiRadio");
+  const ollamaRadio = document.getElementById("ollamaRadio");
+  const geminiConfig = document.getElementById("geminiConfig");
+  const ollamaConfig = document.getElementById("ollamaConfig");
+  const saveAiConfigButton = document.getElementById("saveAiConfig");
+  const aiConfigStatusDiv = document.getElementById("aiConfigStatus");
 
   const ttsApiUrlInput = document.getElementById("ttsApiUrl");
   const ttsApiKeyInput = document.getElementById("ttsApiKey");
@@ -31,29 +37,60 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
   }
 
-  // Load saved Gemini API configuration
+  // Load saved AI configuration
   const storage = await browser.storage.sync.get([
     "geminiApiKey",
     "geminiApiUrl",
+    "ollamaApiUrl",
+    "ollamaModel",
+    "aiModel",
   ]);
   const storedApiKey = storage.geminiApiKey;
   const storedApiUrl = storage.geminiApiUrl;
+  const storedOllamaUrl = storage.ollamaApiUrl;
+  const storedOllamaModel = storage.ollamaModel;
+  const storedAiModel = storage.aiModel || "gemini";
 
-  // Set API URL (with default if not set)
+  // Set AI model radio selection
+  if (storedAiModel === "ollama") {
+    ollamaRadio.checked = true;
+    geminiConfig.style.display = "none";
+    ollamaConfig.style.display = "block";
+  } else {
+    geminiRadio.checked = true;
+    geminiConfig.style.display = "block";
+    ollamaConfig.style.display = "none";
+  }
+
+  // Set Gemini API URL (with default if not set)
   const defaultApiUrl =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
   geminiApiUrlInput.value = storedApiUrl || defaultApiUrl;
 
-  // Set API Key
-  if (storedApiKey) {
-    geminiApiKeyInput.value = storedApiKey;
-    geminiConfigStatusDiv.textContent = "Configuration loaded.";
-    geminiConfigStatusDiv.style.color = "green";
+  // Set Gemini API Key
+  geminiApiKeyInput.value = storedApiKey || "";
+
+  // Set Ollama configuration
+  ollamaApiUrlInput.value = storedOllamaUrl || "http://localhost:11434";
+  ollamaModelInput.value = storedOllamaModel || "llama3.2:latest";
+
+  // Set status message
+  if (storedAiModel === "ollama") {
+    if (storedOllamaUrl) {
+      aiConfigStatusDiv.textContent = "Ollama configuration loaded.";
+      aiConfigStatusDiv.style.color = "green";
+    } else {
+      aiConfigStatusDiv.textContent = "Please configure Ollama settings.";
+      aiConfigStatusDiv.style.color = "gray";
+    }
   } else {
-    geminiApiKeyInput.value = ""; // No default API key
-    geminiConfigStatusDiv.textContent =
-      "Please enter your Gemini API configuration.";
-    geminiConfigStatusDiv.style.color = "gray";
+    if (storedApiKey) {
+      aiConfigStatusDiv.textContent = "Gemini configuration loaded.";
+      aiConfigStatusDiv.style.color = "green";
+    } else {
+      aiConfigStatusDiv.textContent = "Please enter your Gemini API configuration.";
+      aiConfigStatusDiv.style.color = "gray";
+    }
   }
 
   // Load saved TTS configuration
@@ -81,42 +118,95 @@ document.addEventListener("DOMContentLoaded", async () => {
     ttsConfigStatusDiv.style.color = "gray";
   }
   console.log(
-    "Popup: Gemini configuration initialized - API URL:",
+    "Popup: AI configuration initialized - Model:",
+    storedAiModel,
+    "Gemini API URL:",
     geminiApiUrlInput.value,
     "API Key:",
     geminiApiKeyInput.value ? "****" : "empty",
   );
 
-  saveGeminiConfigButton.addEventListener("click", async () => {
-    const apiKey = geminiApiKeyInput.value.trim();
-    const apiUrl = geminiApiUrlInput.value.trim();
-
-    if (!apiKey) {
-      geminiConfigStatusDiv.textContent = "API key cannot be empty.";
-      geminiConfigStatusDiv.style.color = "red";
-      console.warn("Popup: Attempted to save empty API key.");
-      return;
+  // Handle AI model radio button changes
+  geminiRadio.addEventListener("change", () => {
+    if (geminiRadio.checked) {
+      geminiConfig.style.display = "block";
+      ollamaConfig.style.display = "none";
     }
+  });
 
-    if (!apiUrl) {
-      geminiConfigStatusDiv.textContent = "API URL cannot be empty.";
-      geminiConfigStatusDiv.style.color = "red";
-      console.warn("Popup: Attempted to save empty API URL.");
-      return;
+  ollamaRadio.addEventListener("change", () => {
+    if (ollamaRadio.checked) {
+      geminiConfig.style.display = "none";
+      ollamaConfig.style.display = "block";
     }
+  });
 
-    await browser.storage.sync.set({
-      geminiApiKey: apiKey,
-      geminiApiUrl: apiUrl,
-    });
-    geminiConfigStatusDiv.textContent = "Configuration saved!";
-    geminiConfigStatusDiv.style.color = "green";
-    console.log(
-      "Popup: Saved Gemini configuration - URL:",
-      apiUrl,
-      "API Key:",
-      "****",
-    );
+  saveAiConfigButton.addEventListener("click", async () => {
+    const selectedModel = geminiRadio.checked ? "gemini" : "ollama";
+    
+    if (selectedModel === "gemini") {
+      const apiKey = geminiApiKeyInput.value.trim();
+      const apiUrl = geminiApiUrlInput.value.trim();
+
+      if (!apiKey) {
+        aiConfigStatusDiv.textContent = "Gemini API key cannot be empty.";
+        aiConfigStatusDiv.style.color = "red";
+        console.warn("Popup: Attempted to save empty Gemini API key.");
+        return;
+      }
+
+      if (!apiUrl) {
+        aiConfigStatusDiv.textContent = "Gemini API URL cannot be empty.";
+        aiConfigStatusDiv.style.color = "red";
+        console.warn("Popup: Attempted to save empty Gemini API URL.");
+        return;
+      }
+
+      await browser.storage.sync.set({
+        aiModel: selectedModel,
+        geminiApiKey: apiKey,
+        geminiApiUrl: apiUrl,
+      });
+      aiConfigStatusDiv.textContent = "Gemini configuration saved!";
+      aiConfigStatusDiv.style.color = "green";
+      console.log(
+        "Popup: Saved Gemini configuration - URL:",
+        apiUrl,
+        "API Key:",
+        "****",
+      );
+    } else {
+      const ollamaUrl = ollamaApiUrlInput.value.trim();
+      const ollamaModel = ollamaModelInput.value.trim();
+
+      if (!ollamaUrl) {
+        aiConfigStatusDiv.textContent = "Ollama API URL cannot be empty.";
+        aiConfigStatusDiv.style.color = "red";
+        console.warn("Popup: Attempted to save empty Ollama API URL.");
+        return;
+      }
+
+      if (!ollamaModel) {
+        aiConfigStatusDiv.textContent = "Ollama model cannot be empty.";
+        aiConfigStatusDiv.style.color = "red";
+        console.warn("Popup: Attempted to save empty Ollama model.");
+        return;
+      }
+
+      await browser.storage.sync.set({
+        aiModel: selectedModel,
+        ollamaApiUrl: ollamaUrl,
+        ollamaModel: ollamaModel,
+      });
+      aiConfigStatusDiv.textContent = "Ollama configuration saved!";
+      aiConfigStatusDiv.style.color = "green";
+      console.log(
+        "Popup: Saved Ollama configuration - URL:",
+        ollamaUrl,
+        "Model:",
+        ollamaModel,
+      );
+    }
   });
 
   saveTtsConfigButton.addEventListener("click", async () => {
@@ -230,10 +320,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         currentSelection.selectedHtml !== "",
       );
       selectedTextDisplay.textContent = currentSelection.selectedText;
+      
+      // Get current AI configuration
+      const currentAiConfig = await browser.storage.sync.get([
+        "aiModel",
+        "geminiApiKey",
+        "geminiApiUrl",
+        "ollamaApiUrl",
+        "ollamaModel",
+      ]);
+      
       await processLoadedText(
         currentSelection.selectedText,
-        geminiApiKeyInput.value.trim(),
-        geminiApiUrlInput.value.trim(),
+        {
+          aiModel: currentAiConfig.aiModel || "gemini",
+          geminiApiKey: currentAiConfig.geminiApiKey,
+          geminiApiUrl: currentAiConfig.geminiApiUrl,
+          ollamaApiUrl: currentAiConfig.ollamaApiUrl,
+          ollamaModel: currentAiConfig.ollamaModel,
+        }
       ); // Call processing
     } else {
       selectedTextDisplay.textContent =
@@ -259,10 +364,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       "Popup: Text display updated by background script with newly selected HTML block text:",
       selectedText,
     );
+    
+    // Get current AI configuration
+    const currentAiConfig = await browser.storage.sync.get([
+      "aiModel",
+      "geminiApiKey",
+      "geminiApiUrl",
+      "ollamaApiUrl",
+      "ollamaModel",
+    ]);
+    
     await processLoadedText(
       selectedText,
-      geminiApiKeyInput.value.trim(),
-      geminiApiUrlInput.value.trim(),
+      {
+        aiModel: currentAiConfig.aiModel || "gemini",
+        geminiApiKey: currentAiConfig.geminiApiKey,
+        geminiApiUrl: currentAiConfig.geminiApiUrl,
+        ollamaApiUrl: currentAiConfig.ollamaApiUrl,
+        ollamaModel: currentAiConfig.ollamaModel,
+      }
     ); // Call processing
   };
 
@@ -288,16 +408,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log('Popup: Popup closed after "Select HTML Block" button click.');
   });
 
-  async function processLoadedText(textToProcess, geminiApiKey, geminiApiUrl) {
+  async function processLoadedText(textToProcess, aiConfig) {
     console.log(
       "Popup: Initiating automatic process with text:",
       textToProcess.substring(0, 50) + "...",
     );
-    console.log(
-      "Popup: Using Gemini API key:",
-      geminiApiKey ? "****" : "empty",
-    );
-    console.log("Popup: Using Gemini API URL:", geminiApiUrl);
+    console.log("Popup: Using AI model:", aiConfig.aiModel);
 
     if (!textToProcess) {
       errorDiv.textContent = "No text to process.";
@@ -308,21 +424,37 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    if (!geminiApiKey) {
-      errorDiv.textContent = "Please enter and save a Gemini API key.";
-      statusDiv.textContent = "";
-      console.warn("Popup: geminiApiKey is empty. Aborting automatic process.");
-      return;
+    if (aiConfig.aiModel === "gemini") {
+      if (!aiConfig.geminiApiKey) {
+        errorDiv.textContent = "Please enter and save a Gemini API key.";
+        statusDiv.textContent = "";
+        console.warn("Popup: geminiApiKey is empty. Aborting automatic process.");
+        return;
+      }
+
+      if (!aiConfig.geminiApiUrl) {
+        errorDiv.textContent = "Please enter and save a Gemini API URL.";
+        statusDiv.textContent = "";
+        console.warn("Popup: geminiApiUrl is empty. Aborting automatic process.");
+        return;
+      }
+    } else if (aiConfig.aiModel === "ollama") {
+      if (!aiConfig.ollamaApiUrl) {
+        errorDiv.textContent = "Please enter and save an Ollama API URL.";
+        statusDiv.textContent = "";
+        console.warn("Popup: ollamaApiUrl is empty. Aborting automatic process.");
+        return;
+      }
+
+      if (!aiConfig.ollamaModel) {
+        errorDiv.textContent = "Please enter and save an Ollama model.";
+        statusDiv.textContent = "";
+        console.warn("Popup: ollamaModel is empty. Aborting automatic process.");
+        return;
+      }
     }
 
-    if (!geminiApiUrl) {
-      errorDiv.textContent = "Please enter and save a Gemini API URL.";
-      statusDiv.textContent = "";
-      console.warn("Popup: geminiApiUrl is empty. Aborting automatic process.");
-      return;
-    }
-
-    statusDiv.textContent = "Processing text with Gemini AI...";
+    statusDiv.textContent = `Processing text with ${aiConfig.aiModel === "gemini" ? "Gemini AI" : "Ollama"}...`;
     errorDiv.textContent = "";
 
     console.log(
@@ -332,8 +464,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const response = await browser.runtime.sendMessage({
         action: "processText",
         text: textToProcess,
-        geminiApiKey: geminiApiKey,
-        geminiApiUrl: geminiApiUrl,
+        aiModel: aiConfig.aiModel,
+        geminiApiKey: aiConfig.geminiApiKey,
+        geminiApiUrl: aiConfig.geminiApiUrl,
+        ollamaApiUrl: aiConfig.ollamaApiUrl,
+        ollamaModel: aiConfig.ollamaModel,
       });
       console.log(
         'Popup: "processText" message sent to background script for automatic process.',

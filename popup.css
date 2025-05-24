@@ -173,3 +173,47 @@ h2 {
 .error-message:empty {
   display: none;
 }
+
+.model-selection {
+  margin-bottom: 16px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.radio-label {
+  display: flex !important;
+  align-items: center;
+  font-weight: normal !important;
+  margin: 0 !important;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  width: auto !important;
+  margin: 0 6px 0 0 !important;
+  accent-color: #007bff;
+}
+
+.config-section {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background-color: #ffffff;
+}
+
+.config-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.config-section input {
+  margin-bottom: 10px;
+}
+</edits>

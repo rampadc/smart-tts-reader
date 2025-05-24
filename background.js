@@ -25,9 +25,10 @@ function stopProcessingAnimation() {
   browser.action.setIcon({ path: "icons/icon-48.png" });
 }
 
-// Default Gemini AI API URL
+// Default AI API URLs
 const DEFAULT_GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const DEFAULT_OLLAMA_API_URL = "http://localhost:11434";
 
 // Temporary storage for the last selected HTML block
 let lastSelectedHtmlBlock = {
@@ -215,40 +216,63 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "processText") {
     console.log('Background: Handling "processText" action.');
-    const textToProcess = request.text; // This is the plain text from the popup's textarea
+    const textToProcess = request.text;
+    const aiModel = request.aiModel || "gemini";
     const geminiApiKey = request.geminiApiKey;
     const geminiApiUrl = request.geminiApiUrl || DEFAULT_GEMINI_API_URL;
+    const ollamaApiUrl = request.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
+    const ollamaModel = request.ollamaModel || "llama3.2:latest";
 
-    console.log(
-      "Background: Debug - Received geminiApiKey:",
-      geminiApiKey ? "****" : "undefined",
-    );
-    console.log("Background: Debug - Received geminiApiUrl:", geminiApiUrl);
+    console.log("Background: Debug - AI Model:", aiModel);
     console.log(
       "Background: Debug - Request object keys:",
       Object.keys(request),
     );
 
-    if (!geminiApiKey) {
-      console.error(
-        "Background: Gemini API key is missing in request. Aborting processText.",
-      );
-      sendResponse({
-        error:
-          "Gemini API key is missing. Please set it in the extension popup.",
-      });
-      return;
-    }
+    if (aiModel === "gemini") {
+      if (!geminiApiKey) {
+        console.error(
+          "Background: Gemini API key is missing in request. Aborting processText.",
+        );
+        sendResponse({
+          error:
+            "Gemini API key is missing. Please set it in the extension popup.",
+        });
+        return;
+      }
 
-    if (!geminiApiUrl) {
-      console.error(
-        "Background: Gemini API URL is missing in request. Aborting processText.",
-      );
-      sendResponse({
-        error:
-          "Gemini API URL is missing. Please set it in the extension popup.",
-      });
-      return;
+      if (!geminiApiUrl) {
+        console.error(
+          "Background: Gemini API URL is missing in request. Aborting processText.",
+        );
+        sendResponse({
+          error:
+            "Gemini API URL is missing. Please set it in the extension popup.",
+        });
+        return;
+      }
+    } else if (aiModel === "ollama") {
+      if (!ollamaApiUrl) {
+        console.error(
+          "Background: Ollama API URL is missing in request. Aborting processText.",
+        );
+        sendResponse({
+          error:
+            "Ollama API URL is missing. Please set it in the extension popup.",
+        });
+        return;
+      }
+
+      if (!ollamaModel) {
+        console.error(
+          "Background: Ollama model is missing in request. Aborting processText.",
+        );
+        sendResponse({
+          error:
+            "Ollama model is missing. Please set it in the extension popup.",
+        });
+        return;
+      }
     }
 
     let contentForLLM;
@@ -368,47 +392,84 @@ Processed text:`;
 
     (async () => {
       try {
-        console.log(
-          "Background: Attempting fetch to Gemini API:",
-          geminiApiUrl,
-        );
         startProcessingAnimation();
-        const response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: promptContent,
-                  },
-                ],
-              },
-            ],
-          }),
-        });
+        let response, data, processedText;
+
+        if (aiModel === "gemini") {
+          console.log(
+            "Background: Attempting fetch to Gemini API:",
+            geminiApiUrl,
+          );
+          response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: promptContent,
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error(
+              "Background: Gemini API error response (status not OK):",
+              response.status,
+              errorData,
+            );
+            sendResponse({
+              error: `Gemini API error: ${errorData.error?.message || response.statusText}. Please check your API key.`,
+            });
+            return;
+          }
+
+          data = await response.json();
+          processedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        } else if (aiModel === "ollama") {
+          console.log(
+            "Background: Attempting fetch to Ollama API:",
+            ollamaApiUrl,
+          );
+          response = await fetch(`${ollamaApiUrl}/api/generate`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: ollamaModel,
+              prompt: promptContent,
+              stream: false,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(
+              "Background: Ollama API error response (status not OK):",
+              response.status,
+              errorText,
+            );
+            sendResponse({
+              error: `Ollama API error: ${response.statusText}. Make sure Ollama is running and the model is available.`,
+            });
+            return;
+          }
+
+          data = await response.json();
+          processedText = data.response;
+        }
+
         console.log(
           "Background: Fetch request sent. Checking response status.",
         );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(
-            "Background: Gemini API error response (status not OK):",
-            response.status,
-            errorData,
-          );
-          sendResponse({
-            error: `Gemini API error: ${errorData.error?.message || response.statusText}. Please check your API key.`,
-          });
-          return;
-        }
-
-        const data = await response.json();
-        const processedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (processedText) {
           console.log(
@@ -416,7 +477,7 @@ Processed text:`;
             processedText.trim(),
           );
 
-          // Automatically send to TTS after Gemini processing
+          // Automatically send to TTS after AI processing
           console.log("Background: Automatically sending to TTS...");
           try {
             await processTextWithTTS(processedText.trim());
@@ -435,19 +496,19 @@ Processed text:`;
           }
         } else {
           console.warn(
-            "Background: No processed text received from Gemini. Response data:",
+            "Background: No processed text received from AI. Response data:",
             data,
           );
-          sendResponse({ error: "No processed text received from Gemini." });
+          sendResponse({ error: `No processed text received from ${aiModel}.` });
         }
       } catch (error) {
         console.error(
-          "Background: Uncaught error during fetch to Gemini API:",
+          `Background: Uncaught error during fetch to ${aiModel} API:`,
           error,
         );
         sendResponse({
           error:
-            "Failed to connect to Gemini API. Please check your internet connection and API key: " +
+            `Failed to connect to ${aiModel} API. Please check your connection and configuration: ` +
             error.message,
         });
       }
@@ -641,22 +702,32 @@ Processed text:`;
 
 // Helper function to auto-process selection
 async function autoProcessSelection() {
-  console.log("Background: Auto-processing selection...");
   try {
-    // Get Gemini API configuration
+    // Get AI configuration
     const storage = await browser.storage.sync.get([
+      "aiModel",
       "geminiApiKey",
       "geminiApiUrl",
+      "ollamaApiUrl",
+      "ollamaModel",
     ]);
+    const aiModel = storage.aiModel || "gemini";
     const geminiApiKey = storage.geminiApiKey;
     const geminiApiUrl = storage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
+    const ollamaApiUrl = storage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
+    const ollamaModel = storage.ollamaModel || "llama3.2:latest";
 
-    if (!geminiApiKey) {
+    if (aiModel === "gemini" && !geminiApiKey) {
       console.error("Background: No Gemini API key found for auto-processing.");
       return;
     }
 
-    console.log("Background: Auto-processing with Gemini API...");
+    if (aiModel === "ollama" && !ollamaApiUrl) {
+      console.error("Background: No Ollama API URL found for auto-processing.");
+      return;
+    }
+
+    console.log(`Background: Auto-processing with ${aiModel} API...`);
 
     // Use the same processing logic as the processText action
     let contentForLLM =
@@ -824,36 +895,65 @@ async function autoProcessSelection() {
     Processed text:`;
 
     startProcessingAnimation();
-    const response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: promptContent,
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    let response, data, processedText;
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error(
-        "Background: Gemini API error during auto-processing:",
-        errorData,
-      );
-      stopProcessingAnimation();
-      return;
+    if (aiModel === "gemini") {
+      response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: promptContent,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(
+          "Background: Gemini API error during auto-processing:",
+          errorData,
+        );
+        stopProcessingAnimation();
+        return;
+      }
+
+      data = await response.json();
+      processedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (aiModel === "ollama") {
+      response = await fetch(`${ollamaApiUrl}/api/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: ollamaModel,
+          prompt: promptContent,
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          "Background: Ollama API error during auto-processing:",
+          errorText,
+        );
+        stopProcessingAnimation();
+        return;
+      }
+
+      data = await response.json();
+      processedText = data.response;
     }
-
-    const data = await response.json();
-    const processedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (processedText) {
       console.log("Background: Auto-processing complete, sending to TTS...");
@@ -862,7 +962,7 @@ async function autoProcessSelection() {
       console.log("Background: Auto-processing and TTS complete.");
     } else {
       console.warn(
-        "Background: No processed text from Gemini during auto-processing.",
+        `Background: No processed text from ${aiModel} during auto-processing.`,
       );
       stopProcessingAnimation();
     }

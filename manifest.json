@@ -3,7 +3,7 @@
   "name": "Smart Reader",
   "id": "smart-reader-tts",
   "version": "1.0",
-  "description": "Preprocess HTML content that contains Math equations using Gemini AI and listen with a local TTS",
+  "description": "Preprocess HTML content with math equations using Gemini AI or Ollama, then listen with OpenAI-compatible TTS",
   "permissions": [
     "activeTab",
     "scripting",
@@ -14,7 +14,8 @@
   ],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
-    "http://localhost:*/*",
+    "http://localhost:8880/*",
+    "http://localhost:11434/*",
     "https://*/*"
   ],
   "background": {

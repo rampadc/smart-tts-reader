@@ -18,23 +18,58 @@
             </div>
 
             <div class="api-settings">
-                <h2>Gemini AI Configuration</h2>
-                <label for="geminiApiUrl">Gemini API URL:</label>
-                <input
-                    type="text"
-                    id="geminiApiUrl"
-                    placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-                />
+                <h2>AI Model Configuration</h2>
+                
+                <div class="model-selection">
+                    <label>AI Model:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="aiModel" value="gemini" id="geminiRadio" checked />
+                            Gemini AI
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="aiModel" value="ollama" id="ollamaRadio" />
+                            Ollama
+                        </label>
+                    </div>
+                </div>
 
-                <label for="geminiApiKey">Gemini API Key:</label>
-                <input
-                    type="password"
-                    id="geminiApiKey"
-                    placeholder="Enter your Gemini API key"
-                />
+                <div id="geminiConfig" class="config-section">
+                    <h3>Gemini AI Configuration</h3>
+                    <label for="geminiApiUrl">Gemini API URL:</label>
+                    <input
+                        type="text"
+                        id="geminiApiUrl"
+                        placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+                    />
 
-                <button id="saveGeminiConfig">Save Gemini Configuration</button>
-                <div id="geminiConfigStatus" class="status-message"></div>
+                    <label for="geminiApiKey">Gemini API Key:</label>
+                    <input
+                        type="password"
+                        id="geminiApiKey"
+                        placeholder="Enter your Gemini API key"
+                    />
+                </div>
+
+                <div id="ollamaConfig" class="config-section" style="display: none;">
+                    <h3>Ollama Configuration</h3>
+                    <label for="ollamaApiUrl">Ollama API URL:</label>
+                    <input
+                        type="text"
+                        id="ollamaApiUrl"
+                        placeholder="http://localhost:11434"
+                    />
+
+                    <label for="ollamaModel">Model:</label>
+                    <input
+                        type="text"
+                        id="ollamaModel"
+                        placeholder="llama3.2:latest"
+                    />
+                </div>
+
+                <button id="saveAiConfig">Save AI Configuration</button>
+                <div id="aiConfigStatus" class="status-message"></div>
             </div>
 
             <div class="tts-settings">
