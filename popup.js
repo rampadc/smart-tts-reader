@@ -508,44 +508,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
   });
 
-  // Auto-process HTML block after selection
-  async function checkAndProcessSelectedBlock() {
-    try {
-      const response = await browser.runtime.sendMessage({
-        action: "getSelectedBlock"
-      });
 
-      if (response && response.success && response.html) {
-        console.log("Popup: Found selected HTML block, auto-processing...");
-        
-        // Extract text from HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = response.html;
-        const textContent = tempDiv.innerText || tempDiv.textContent || '';
-        
-        if (textContent.trim()) {
-          // Get AI configuration
-          const aiConfig = {
-            aiModel: geminiRadio.checked ? "gemini" : "ollama",
-            geminiApiKey: geminiApiKeyInput.value,
-            geminiApiUrl: geminiApiUrlInput.value,
-            ollamaApiUrl: ollamaApiUrlInput.value,
-            ollamaModel: ollamaModelInput.value,
-            promptType: defaultPromptRadio.checked ? "default" : "custom",
-            customPrompt: customPromptInput.value,
-          };
-
-          statusDiv.textContent = "Processing selected HTML block...";
-          await processLoadedText(textContent, aiConfig);
-        }
-      }
-    } catch (error) {
-      console.error("Popup: Error checking for selected block:", error);
-    }
-  }
-
-  // Check for selected HTML block when popup opens
-  setTimeout(checkAndProcessSelectedBlock, 100);
 
   // Debug TTS settings on popup open
   setTimeout(async () => {

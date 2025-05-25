@@ -137,11 +137,7 @@ function buildPromptContent(promptType, customPrompt, contentForLLM) {
   return DEFAULT_PROMPT_CONTENT + "\n\nContent to process:\n" + contentForLLM;
 }
 
-// Variables for HTML selection tracking
-let lastSelectedHtmlBlock = {
-  html: "",
-  timestamp: 0,
-};
+// Flag to track if selection was initiated from popup vs context menu
 let selectionFromPopup = false;
 
 // TTS configuration
@@ -257,58 +253,73 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sender.id || "self",
   );
 
-  if (request.action === "getSelectedBlock") {
-    console.log(
-      "Background: Received getSelectedBlock request from content script",
-    );
 
-    if (
-      lastSelectedHtmlBlock.html &&
-      lastSelectedHtmlBlock.html.trim() !== ""
-    ) {
-      console.log(
-        "Background: Found selected HTML block, length:",
-        lastSelectedHtmlBlock.html.length,
-      );
-      sendResponse({
-        success: true,
-        html: lastSelectedHtmlBlock.html,
-        timestamp: lastSelectedHtmlBlock.timestamp,
-      });
-    } else {
-      console.log("Background: No HTML block found");
-      sendResponse({
-        success: false,
-        message: "No HTML block selected",
-      });
-    }
-    return true;
-  }
 
   if (request.action === "storeSelectedHtmlBlock") {
-    console.log(
-      "Background: Received HTML block from content script, length:",
-      request.html.length,
-    );
+    console.log("Background: Received HTML block from content script, length:", request.html.length);
+    
+    // Extract text from HTML immediately
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = request.html;
+    const textContent = tempDiv.innerText || tempDiv.textContent || '';
+    
+    if (textContent && textContent.trim()) {
+      console.log("Background: Processing HTML block immediately, text length:", textContent.length);
+      
+      // Get AI configuration and process immediately
+      (async () => {
+        try {
+          const aiStorage = await browser.storage.sync.get([
+            "geminiApiKey",
+            "geminiApiUrl",
+            "ollamaApiUrl", 
+            "ollamaModel",
+            "aiModel",
+            "promptType",
+            "customPrompt",
+          ]);
 
-    lastSelectedHtmlBlock = {
-      html: request.html,
-      timestamp: Date.now(),
-    };
+          const geminiApiKey = aiStorage.geminiApiKey;
+          const geminiApiUrl = aiStorage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
+          const ollamaApiUrl = aiStorage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
+          const ollamaModel = aiStorage.ollamaModel || "llama3.2:latest";
+          const aiModel = aiStorage.aiModel || "gemini";
+          const promptType = aiStorage.promptType || "default";
+          const customPrompt = aiStorage.customPrompt || "";
 
-    console.log("Background: HTML block stored successfully");
+          // Validate AI configuration
+          if (aiModel === "gemini" && (!geminiApiKey || !geminiApiUrl)) {
+            console.error("Background: Gemini API key or URL not configured");
+            return;
+          }
+          if (aiModel === "ollama" && (!ollamaApiUrl || !ollamaModel)) {
+            console.error("Background: Ollama API URL or model not configured");
+            return;
+          }
 
-    // Check if this selection came from popup
-    if (selectionFromPopup) {
-      console.log(
-        "Background: This was a popup-initiated selection, auto-processing...",
-      );
-      selectionFromPopup = false; // Reset the flag
+          // Process with AI immediately
+          const result = await handleProcessText(
+            textContent,
+            aiModel,
+            geminiApiKey,
+            geminiApiUrl,
+            ollamaApiUrl,
+            ollamaModel,
+            promptType,
+            customPrompt
+          );
 
-      // Auto-process the selected HTML block
-      autoProcessSelection();
+          if (result.error) {
+            console.error("Background: Error processing HTML block:", result.error);
+          } else {
+            console.log("Background: HTML block processed successfully");
+          }
+        } catch (error) {
+          console.error("Background: Error in immediate HTML block processing:", error);
+        }
+      })();
     }
-
+    
     sendResponse({ success: true });
     return true;
   }
@@ -380,19 +391,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     }
 
-    let contentForLLM;
-    // We prioritize the full HTML for LLM if it exists, otherwise use the plain text.
-    if (lastSelectedHtmlBlock.html) {
-      contentForLLM = lastSelectedHtmlBlock.html;
-      console.log(
-        "Background: Using previously selected HTML block (full HTML) for LLM input.",
-      );
-    } else {
-      contentForLLM = textToProcess;
-      console.log(
-        "Background: Using plain text from popup textarea (or context menu) for LLM input.",
-      );
-    }
+    const contentForLLM = textToProcess;
 
     const promptContent = buildPromptContent(
       promptType,
@@ -599,37 +598,159 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   );
 });
 
+console.log("Background: Message listener initialized.");
+
+// Create context menu items
+browser.contextMenus.create({
+  id: "selectHtmlBlock",
+  title: "Select HTML Block for TTS",
+  contexts: ["page"],
+});
+
+browser.contextMenus.create({
+  id: "processSelectedText",
+  title: "Process Selected Text + HTML Context",
+  contexts: ["selection"],
+});
+
+// Handle context menu clicks
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "selectHtmlBlock") {
+    console.log("Background: Context menu 'Select HTML Block' clicked");
+    selectionFromPopup = false; // Mark as context menu selection
+    // Send message to content script to activate selection mode
+    browser.tabs
+      .sendMessage(tab.id, { action: "activateSelectionMode" })
+      .catch((err) => {
+        console.error(
+          "Background: Error sending activateSelectionMode to content script:",
+          err,
+        );
+      });
+  } else if (info.menuItemId === "processSelectedText") {
+    console.log("Background: Context menu 'Process Selected Text + HTML Context' clicked");
+    selectionFromPopup = false; // Mark as context menu selection
+    // Send message to content script to get selected text and containing HTML blocks
+    browser.tabs
+      .sendMessage(tab.id, { action: "getSelectedTextWithBlocks" })
+      .then((response) => {
+        if (response && response.text) {
+          console.log(
+            "Background: Received multi-block selection from content script",
+          );
+          // Process immediately without storing
+          const textContent = response.text;
+          const htmlContent = response.html;
+          
+          if (htmlContent && htmlContent.trim()) {
+            // Process HTML content with context immediately
+            (async () => {
+              try {
+                const aiStorage = await browser.storage.sync.get([
+                  "geminiApiKey",
+                  "geminiApiUrl",
+                  "ollamaApiUrl", 
+                  "ollamaModel",
+                  "aiModel",
+                  "promptType",
+                  "customPrompt",
+                ]);
+
+                const geminiApiKey = aiStorage.geminiApiKey;
+                const geminiApiUrl = aiStorage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
+                const ollamaApiUrl = aiStorage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
+                const ollamaModel = aiStorage.ollamaModel || "llama3.2:latest";
+                const aiModel = aiStorage.aiModel || "gemini";
+                const promptType = aiStorage.promptType || "default";
+                const customPrompt = aiStorage.customPrompt || "";
+
+                // Extract text from HTML for processing
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                const processText = tempDiv.innerText || tempDiv.textContent || textContent;
+
+                const result = await handleProcessText(
+                  processText,
+                  aiModel,
+                  geminiApiKey,
+                  geminiApiUrl,
+                  ollamaApiUrl,
+                  ollamaModel,
+                  promptType,
+                  customPrompt
+                );
+
+                if (result.error) {
+                  browser.notifications.create({
+                    type: "basic",
+                    iconUrl: "icons/icon-48.png",
+                    title: "Smart Reader Error",
+                    message: "Processing failed: " + result.error,
+                  });
+                } else {
+                  browser.notifications.create({
+                    type: "basic",
+                    iconUrl: "icons/icon-48.png",
+                    title: "Smart Reader",
+                    message: "Processing completed successfully",
+                  });
+                }
+              } catch (error) {
+                console.error("Background: Error processing HTML context selection:", error);
+                browser.notifications.create({
+                  type: "basic",
+                  iconUrl: "icons/icon-48.png",
+                  title: "Smart Reader Error",
+                  message: "An unexpected error occurred: " + error.message,
+                });
+              }
+            })();
+          }
+        }
+      })
+      .catch((err) => {
+        console.error(
+          "Background: Error getting selected text with blocks:",
+          err,
+        );
+      });
+  }
+});
+
 async function autoProcessSelection() {
   console.log("Background: autoProcessSelection called");
-
+  
   try {
-    // Check if we have a stored HTML block
-    if (
-      !lastSelectedHtmlBlock.html ||
-      lastSelectedHtmlBlock.html.trim() === ""
-    ) {
-      throw new Error("No HTML block selected");
+    // This function is now mainly used for context menu selections
+    // HTML block selections are processed immediately in storeSelectedHtmlBlock
+    
+    // Get current tab for text selection
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      throw new Error("No active tab found");
     }
 
-    // Extract text from HTML
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = lastSelectedHtmlBlock.html;
-    const textContent = tempDiv.innerText || tempDiv.textContent || "";
+    // Get text selection from content script
+    const selectionResponse = await browser.tabs.sendMessage(tab.id, {
+      action: "getSelectedText"
+    });
 
-    if (!textContent || textContent.trim() === "") {
-      throw new Error("No text content in selected HTML block");
+    if (!selectionResponse || !selectionResponse.success) {
+      throw new Error("No text selected or could not get selection");
     }
 
-    console.log(
-      "Background: Processing HTML block text, length:",
-      textContent.length,
-    );
+    const selectedText = selectionResponse.text;
+    if (!selectedText || selectedText.trim() === "") {
+      throw new Error("No text selected");
+    }
+
+    console.log("Background: Processing selected text, length:", selectedText.length);
 
     // Get AI configuration
     const aiStorage = await browser.storage.sync.get([
       "geminiApiKey",
       "geminiApiUrl",
-      "ollamaApiUrl",
+      "ollamaApiUrl", 
       "ollamaModel",
       "aiModel",
       "promptType",
@@ -654,14 +775,14 @@ async function autoProcessSelection() {
 
     // Process with AI
     const processResult = await handleProcessText(
-      textContent,
+      selectedText,
       aiModel,
       geminiApiKey,
       geminiApiUrl,
       ollamaApiUrl,
       ollamaModel,
       promptType,
-      customPrompt,
+      customPrompt
     );
 
     if (processResult.error) {
@@ -670,6 +791,7 @@ async function autoProcessSelection() {
 
     console.log("Background: Auto-processing completed successfully");
     return processResult;
+
   } catch (error) {
     console.error("Background: Error in autoProcessSelection:", error);
     throw error;
