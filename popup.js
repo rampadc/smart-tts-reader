@@ -1,7 +1,9 @@
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener('DOMContentLoaded', async function() {
   const selectHtmlBlockButton = document.getElementById("selectHtmlBlock");
   const statusDiv = document.getElementById("status");
   const errorDiv = document.getElementById("error");
+
+
 
   const geminiApiUrlInput = document.getElementById("geminiApiUrl");
   const geminiApiKeyInput = document.getElementById("geminiApiKey");
@@ -44,6 +46,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       'Popup: ERROR: "Select HTML Block" button element NOT FOUND! Check popup.html ID.',
     );
   }
+
+
 
   // Load saved AI configuration
   const storage = await browser.storage.sync.get([
@@ -476,26 +480,94 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   selectHtmlBlockButton.addEventListener("click", async () => {
-    console.log('Popup: "Select HTML Block" button clicked - Listener Fired!');
-    statusDiv.textContent =
-      "Click on an HTML element on the page to select it...";
-    errorDiv.textContent = "";
-    console.log(
-      'Popup: "Select HTML Block" button clicked. Notifying background this is popup-initiated.',
-    );
+    try {
+      console.log('Popup: "Select HTML Block" button clicked - Listener Fired!');
+      statusDiv.textContent = "Click on an HTML element on the page to select it...";
+      errorDiv.textContent = "";
+      console.log('Popup: "Select HTML Block" button clicked. Notifying background this is popup-initiated.');
 
-    // Notify background that this selection is popup-initiated
-    await browser.runtime.sendMessage({ action: "initiatePopupSelection" });
+      // Notify background that this selection is popup-initiated
+      await browser.runtime.sendMessage({ action: "initiatePopupSelection" });
 
-    console.log("Popup: Sending activation message to content script.");
-    const [tab] = await browser.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    await browser.tabs.sendMessage(tab.id, { action: "activateSelectionMode" });
-    window.close(); // Close the popup so the user can interact with the page
-    console.log('Popup: Popup closed after "Select HTML Block" button click.');
+      console.log("Popup: Sending activation message to content script.");
+      const [tab] = await browser.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      
+      if (!tab) {
+        throw new Error("No active tab found");
+      }
+
+      await browser.tabs.sendMessage(tab.id, { action: "activateSelectionMode" });
+      console.log('Popup: Selection mode activated, closing popup.');
+      window.close(); // Close the popup so the user can interact with the page
+    } catch (error) {
+      console.error("Error in select HTML block:", error);
+      errorDiv.textContent = "Error: Could not activate selection mode. Please try again.";
+    }
   });
+
+  // Auto-process HTML block after selection
+  async function checkAndProcessSelectedBlock() {
+    try {
+      const response = await browser.runtime.sendMessage({
+        action: "getSelectedBlock"
+      });
+
+      if (response && response.success && response.html) {
+        console.log("Popup: Found selected HTML block, auto-processing...");
+        
+        // Extract text from HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = response.html;
+        const textContent = tempDiv.innerText || tempDiv.textContent || '';
+        
+        if (textContent.trim()) {
+          // Get AI configuration
+          const aiConfig = {
+            aiModel: geminiRadio.checked ? "gemini" : "ollama",
+            geminiApiKey: geminiApiKeyInput.value,
+            geminiApiUrl: geminiApiUrlInput.value,
+            ollamaApiUrl: ollamaApiUrlInput.value,
+            ollamaModel: ollamaModelInput.value,
+            promptType: defaultPromptRadio.checked ? "default" : "custom",
+            customPrompt: customPromptInput.value,
+          };
+
+          statusDiv.textContent = "Processing selected HTML block...";
+          await processLoadedText(textContent, aiConfig);
+        }
+      }
+    } catch (error) {
+      console.error("Popup: Error checking for selected block:", error);
+    }
+  }
+
+  // Check for selected HTML block when popup opens
+  setTimeout(checkAndProcessSelectedBlock, 100);
+
+  // Debug TTS settings on popup open
+  setTimeout(async () => {
+    try {
+      console.log("Popup: Debugging TTS settings...");
+      const ttsStorage = await browser.storage.local.get([
+        "ttsApiUrl",
+        "ttsApiKey",
+        "speechSpeed",
+        "voice",
+        "model",
+        "streamingMode",
+      ]);
+      console.log("Popup: Current TTS storage:", ttsStorage);
+      
+      // Force reload TTS settings in background
+      await browser.runtime.sendMessage({ action: "reloadTtsSettings" });
+      console.log("Popup: Forced TTS settings reload");
+    } catch (error) {
+      console.error("Popup: Error debugging TTS settings:", error);
+    }
+  }, 200);
 
   async function processLoadedText(textToProcess, aiConfig) {
     console.log(

@@ -62,9 +62,9 @@ function handleClick(event) {
 
     browser.runtime
       .sendMessage({
-        action: "htmlBlockSelected",
-        selectedHtml: selectedHtml,
-        selectedText: selectedText,
+        action: "storeSelectedHtmlBlock",
+        html: selectedHtml,
+        text: selectedText,
       })
       .catch((err) =>
         console.error(
@@ -166,12 +166,13 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         plainSelectedText,
       );
       sendResponse({
-        selectedText: plainSelectedText,
-        selectedHtml: htmlSelectedContent,
+        success: true,
+        text: plainSelectedText,
+        html: htmlSelectedContent,
       });
     } else {
       console.log("Content Script: No plain text selection detected.");
-      sendResponse({ selectedText: "", selectedHtml: "" });
+      sendResponse({ success: false, text: "", html: "" });
     }
   } else if (request.action === "getSelectedTextWithBlocks") {
     const selection = window.getSelection();
@@ -191,12 +192,13 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       );
       
       sendResponse({
-        selectedText: plainSelectedText,
-        selectedHtml: combinedHtml,
+        success: true,
+        text: plainSelectedText,
+        html: combinedHtml,
       });
     } else {
       console.log("Content Script: No text selection for multi-block processing.");
-      sendResponse({ selectedText: "", selectedHtml: "" });
+      sendResponse({ success: false, text: "", html: "" });
     }
   } else if (request.action === "activateSelectionMode") {
     if (!selectionModeActive) {
