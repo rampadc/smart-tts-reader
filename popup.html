@@ -11,24 +11,31 @@
 
             <div class="text-selection">
                 <button id="selectHtmlBlock">Select HTML Block</button>
-                <div id="selectedTextDisplay" class="selected-text-display">
-                    No content selected yet. Click "Select HTML Block" to choose
-                    content from the page.
-                </div>
             </div>
 
             <div class="api-settings">
                 <h2>AI Model Configuration</h2>
-                
+
                 <div class="model-selection">
                     <label>AI Model:</label>
                     <div class="radio-group">
                         <label class="radio-label">
-                            <input type="radio" name="aiModel" value="gemini" id="geminiRadio" checked />
+                            <input
+                                type="radio"
+                                name="aiModel"
+                                value="gemini"
+                                id="geminiRadio"
+                                checked
+                            />
                             Gemini AI
                         </label>
                         <label class="radio-label">
-                            <input type="radio" name="aiModel" value="ollama" id="ollamaRadio" />
+                            <input
+                                type="radio"
+                                name="aiModel"
+                                value="ollama"
+                                id="ollamaRadio"
+                            />
                             Ollama
                         </label>
                     </div>
@@ -51,7 +58,11 @@
                     />
                 </div>
 
-                <div id="ollamaConfig" class="config-section" style="display: none;">
+                <div
+                    id="ollamaConfig"
+                    class="config-section"
+                    style="display: none"
+                >
                     <h3>Ollama Configuration</h3>
                     <label for="ollamaApiUrl">Ollama API URL:</label>
                     <input
@@ -70,6 +81,74 @@
 
                 <button id="saveAiConfig">Save AI Configuration</button>
                 <div id="aiConfigStatus" class="status-message"></div>
+            </div>
+
+            <div class="prompt-settings">
+                <h2>Custom Prompt Configuration</h2>
+
+                <div class="prompt-selection">
+                    <label>Prompt Template:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input
+                                type="radio"
+                                name="promptType"
+                                value="default"
+                                id="defaultPromptRadio"
+                                checked
+                            />
+                            Default Math & TTS
+                        </label>
+                        <label class="radio-label">
+                            <input
+                                type="radio"
+                                name="promptType"
+                                value="custom"
+                                id="customPromptRadio"
+                            />
+                            Custom Prompt
+                        </label>
+                    </div>
+                </div>
+
+                <div
+                    id="customPromptConfig"
+                    class="config-section"
+                    style="display: none"
+                >
+                    <label for="customPrompt">Custom Prompt:</label>
+                    <textarea
+                        id="customPrompt"
+                        rows="8"
+                        placeholder="Enter your custom prompt here. Use ${content} as a placeholder for the selected content."
+                    ></textarea>
+                    <div class="prompt-help">
+                        <small>
+                            <strong>Tip:</strong> Use <code>${content}</code> in
+                            your prompt where you want the selected text to be
+                            inserted.
+                            <br />
+                            <strong>Example:</strong> "Summarize the following
+                            text in simple terms: ${content}"
+                        </small>
+                    </div>
+                    
+                    <div id="promptTemplates" class="template-section">
+                        <label for="templateSelect">Quick Templates:</label>
+                        <select id="templateSelect">
+                            <option value="">Choose a template...</option>
+                            <option value="summarize">Summarize Content</option>
+                            <option value="explain">Explain Simply</option>
+                            <option value="bullets">Extract Key Points</option>
+                        </select>
+                        <button id="loadTemplate" type="button">
+                            Load Template
+                        </button>
+                    </div>
+                </div>
+
+                <button id="savePromptConfig">Save Prompt Configuration</button>
+                <div id="promptConfigStatus" class="status-message"></div>
             </div>
 
             <div class="tts-settings">

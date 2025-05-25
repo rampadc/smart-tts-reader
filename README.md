@@ -2,8 +2,6 @@
 
 Processes web content with Gemini AI or Ollama and converts it to speech using local Kokoro TTS (or OpenAI TTS endpoint). The prompt is focused on parsing and converting mathematical notation (LaTeX, MathJax) to spoken English.
 
-You can now choose between Gemini AI (cloud-based) and Ollama (local) for text processing.
-
 The TTS implementation is based on https://github.com/BassGaming/customtts.
 
 ## Configuration
@@ -30,6 +28,29 @@ The TTS implementation is based on https://github.com/BassGaming/customtts.
    - **API URL**: Usually `http://localhost:11434` (default Ollama port)
    - **Model**: Enter the model name (e.g., `llama3.2:latest`, `mistral:latest`)
 6. Click "Save AI Configuration"
+
+### Custom Prompt Configuration
+
+You can customize how the AI processes your content by choosing between default and custom prompts:
+
+#### Default Prompt
+- Pre-configured for mathematical notation and TTS optimization
+- Converts LaTeX/MathJax to spoken English
+- Handles programming code with summaries
+- Returns regular text unchanged
+
+#### Custom Prompts
+1. In the extension popup, go to "Custom Prompt Configuration"
+2. Select "Custom Prompt" radio button
+3. Enter your custom prompt in the text area
+4. Use `${content}` as a placeholder for the selected text
+5. Click "Save Prompt Configuration"
+
+**Template Examples:**
+- **Summarize**: "Summarize the following content in clear, concise language suitable for text-to-speech: ${content}"
+- **Explain Simply**: "Explain the following content in simple terms that anyone can understand: ${content}"
+- **Math to Speech**: "Convert mathematical content to natural spoken language: ${content}"
+- **Key Points**: "Extract the key points from the following content: ${content}"
 
 ### TTS Setup
 
@@ -72,10 +93,18 @@ TTS provider is OpenAI compatible, I recommend https://github.com/remsky/Kokoro-
 ## How It Works
 
 1. **Content Selection**: User selects HTML blocks or text
-2. **AI Processing**: Your chosen AI model (Gemini or Ollama) processes the content based on type:
-   - **HTML**: Removes tags, preserves structure info
-   - **Math**: Converts LaTeX/MathJax to spoken form (e.g., "∑" → "sum")
-   - **Code**: Provides plain English summary
-   - **Text**: Returns unchanged
+2. **AI Processing**: Your chosen AI model (Gemini or Ollama) processes the content using either:
+   - **Default Prompt**: Optimized for math notation, code summaries, and TTS
+   - **Custom Prompt**: Your personalized instructions for content processing
 3. **Speech Synthesis**: Processed text is sent to TTS
 4. **Audio Playback**: High-quality speech is streamed and played
+
+### Processing Examples
+
+**Default Prompt (Math)**:
+- Input: `∑_{i=1}^n x_i^2`
+- Output: "sum from i equals one to n of x sub i squared"
+
+**Custom Prompt (Summarization)**:
+- Input: Long article about machine learning
+- Output: "This article explains three key concepts in machine learning: supervised learning, unsupervised learning, and reinforcement learning."

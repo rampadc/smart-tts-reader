@@ -30,6 +30,110 @@ const DEFAULT_GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const DEFAULT_OLLAMA_API_URL = "http://localhost:11434";
 
+// Default prompt content
+const DEFAULT_PROMPT_CONTENT = `You're a text-processing assistant for our text-to-speech system. Your job is to convert structured or mathematical input into clean, natural spoken language. Follow these rules strictly:
+
+Mathematical Symbols and Operations:
++: "plus"
+-: "minus"
+*, \\cdot, \\times: "times"
+/, \\div: "divided by" or "over"
+\\frac{a}{b}: "a over b"
+=: "equals"
+!=, \\neq: "is not equal to"
+<: "is less than"
+>: "is greater than"
+<=, \\le: "is less than or equal to"
+>=, \\ge: "is greater than or equal to"
+\\approx, \\approxeq: "is approximately equal to"
+\\equiv: "is equivalent to"
+\\propto: "is proportional to"
+\\implies: "implies"
+\\iff: "if and only if"
+%: "percent"
+Variables and Constants:
+Latin: say the letter (e.g., "x")
+Boldface: say "vector x" or "matrix X" as appropriate
+Greek letters (e.g., \\alpha, \\beta, \\theta, \\sigma, \\phi): use name
+\\pi: "pi", e: "e", i: "imaginary i", \\infty: "infinity"
+Exponents and Roots:
+x^2: "x squared", x^3: "x cubed", x^n: "x to the power of n"
+x^{-1}: "x inverse"
+\\sqrt{x}: "square root of x", \\sqrt[n]{x}: "nth root of x"
+Subscripts and Superscripts:
+x_i: "x sub i", x_{ij}: "x sub i j"
+x^{(i)}: "x superscript i"
+x_i^{(j)}: "x sub i superscript j"
+i^{\\text{th}}: "i-th"
+Functions and Operators:
+f(x): "f of x", \\sin(x): "sine of x", \\ln(x): "natural log of x"
+\\sum, \\prod, \\int: include limits if present
+\\hat{x}, \\tilde{x}, \\bar{x}: "x hat", "x tilde", "x bar"
+Set Theory and Logic:
+\\in: "is in", \\notin: "is not in"
+\\cup: "union", \\cap: "intersection"
+\\emptyset, \\varnothing: "empty set"
+\\setminus, -: "set minus"
+A^c, A': "complement of A"
+\\times: "Cartesian product"
+|A|: "size of A"
+Special Sets:
+\\mathbb{N}: "natural numbers", \\mathbb{Z}: "integers", \\mathbb{Q}: "rationals", \\mathbb{R}: "real numbers", \\mathbb{C}: "complex numbers"
+Brackets and Delimiters:
+(): "parentheses", []: "brackets", {}: "curly braces"
+|x|: "absolute value of x", \\|x\\|: "norm of x"
+\\langle x, y \\rangle: "inner product of x and y"
+Vectors and Matrices:
+\\begin{pmatrix}...: say as "matrix, row one: ..., row two: ..."
+A^T, A^{\\top}: "A transpose"
+A^{-1}: "A inverse", |A|: "determinant of A"
+Probability and Statistics:
+P(A): "probability of A", E[X]: "expected value of X"
+Var(X), Cov(X,Y), P(A|B): "probability of A given B"
+\\sim: "is distributed as", \\mathcal{N}(\\mu, \\sigma^2): "normal distribution with mean mu and variance sigma squared"
+Deep Learning and Machine Learning Notation:
+\\mathcal{L}: "loss function"
+\\nabla_{\\theta}: "gradient with respect to theta"
+\\partial: "partial"
+\\delta, \\Delta: "delta", "capital delta"
+W, b: "weights", "bias"
+\\hat{y}: "y hat" (predicted output)
+y^{(i)}: "y superscript i" or "label for sample i"
+X^{(i)}: "x superscript i" or "input for sample i"
+z^{[l]}: "z at layer l", a^{[l]}: "activation at layer l"
+\\sigma(z): "sigma of z" or "activation function of z"
+\\text{ReLU}, \\text{softmax}: read as-is
+\\argmax, \\argmin: "arg max", "arg min"
+\\mathbb{E}: "expected value"
+\\mathcal{D}: "dataset D"
+\\theta, \\phi: "theta", "phi" (parameters)
+\\mathrm{d}: "d" (for integrals or derivatives)
+Interpretation Principles:
+
+Use context for best phrasing.
+Never speak internal formatting like LaTeX commands.
+Avoid repeating math syntax; just describe the meaning clearly.
+Maintain smooth phrasing for nested expressions.
+Favor what a tutor would say aloud when explaining.
+If the content includes programming syntax (e.g., loops, function calls, variables), return a spoken English summary suitable for TTS.
+Otherwise, return the input text exactly as-is—unchanged and unformatted.
+
+Content:
+\`\`\`
+\${content}
+\`\`\`
+
+Processed text:`;
+
+// Function to build prompt content
+function buildPromptContent(promptType, customPrompt, contentForLLM) {
+  if (promptType === "custom" && customPrompt) {
+    return customPrompt.replace(/\$\{content\}/g, contentForLLM);
+  } else {
+    return DEFAULT_PROMPT_CONTENT.replace(/\$\{content\}/g, contentForLLM);
+  }
+}
+
 // Temporary storage for the last selected HTML block
 let lastSelectedHtmlBlock = {
   selectedText: "",
@@ -222,8 +326,11 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const geminiApiUrl = request.geminiApiUrl || DEFAULT_GEMINI_API_URL;
     const ollamaApiUrl = request.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
     const ollamaModel = request.ollamaModel || "llama3.2:latest";
+    const promptType = request.promptType || "default";
+    const customPrompt = request.customPrompt || "";
 
     console.log("Background: Debug - AI Model:", aiModel);
+    console.log("Background: Debug - Prompt Type:", promptType);
     console.log(
       "Background: Debug - Request object keys:",
       Object.keys(request),
@@ -293,100 +400,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       contentForLLM.substring(0, 200) + "...",
     );
 
-    let promptContent;
-    promptContent = `You're a text-processing assistant for our text-to-speech system. Your job is to convert structured or mathematical input into clean, natural spoken language. Follow these rules strictly:
-
-    Mathematical Symbols and Operations:
-    +: "plus"
-    -: "minus"
-    *, \\cdot, \\times: "times"
-    /, \\div: "divided by" or "over"
-    \\frac{a}{b}: "a over b"
-    =: "equals"
-    !=, \\neq: "is not equal to"
-    <: "is less than"
-    >: "is greater than"
-    <=, \\le: "is less than or equal to"
-    >=, \\ge: "is greater than or equal to"
-    \\approx, \\approxeq: "is approximately equal to"
-    \\equiv: "is equivalent to"
-    \\propto: "is proportional to"
-    \\implies: "implies"
-    \\iff: "if and only if"
-    %: "percent"
-    Variables and Constants:
-    Latin: say the letter (e.g., "x")
-    Boldface: say "vector x" or "matrix X" as appropriate
-    Greek letters (e.g., \\alpha, \\beta, \\theta, \\sigma, \\phi): use name
-    \\pi: "pi", e: "e", i: "imaginary i", \\infty: "infinity"
-    Exponents and Roots:
-    x^2: "x squared", x^3: "x cubed", x^n: "x to the power of n"
-    x^{-1}: "x inverse"
-    \\sqrt{x}: "square root of x", \\sqrt[n]{x}: "nth root of x"
-    Subscripts and Superscripts:
-    x_i: "x sub i", x_{ij}: "x sub i j"
-    x^{(i)}: "x superscript i"
-    x_i^{(j)}: "x sub i superscript j"
-    i^{\\text{th}}: "i-th"
-    Functions and Operators:
-    f(x): "f of x", \\sin(x): "sine of x", \\ln(x): "natural log of x"
-    \\sum, \\prod, \\int: include limits if present
-    \\hat{x}, \\tilde{x}, \\bar{x}: "x hat", "x tilde", "x bar"
-    Set Theory and Logic:
-    \\in: "is in", \\notin: "is not in"
-    \\cup: "union", \\cap: "intersection"
-    \\emptyset, \\varnothing: "empty set"
-    \\setminus, -: "set minus"
-    A^c, A': "complement of A"
-    \\times: "Cartesian product"
-    |A|: "size of A"
-    Special Sets:
-    \\mathbb{N}: "natural numbers", \\mathbb{Z}: "integers", \\mathbb{Q}: "rationals", \\mathbb{R}: "real numbers", \\mathbb{C}: "complex numbers"
-    Brackets and Delimiters:
-    (): "parentheses", []: "brackets", {}: "curly braces"
-    |x|: "absolute value of x", \\|x\\|: "norm of x"
-    \\langle x, y \\rangle: "inner product of x and y"
-    Vectors and Matrices:
-    \\begin{pmatrix}...: say as "matrix, row one: ..., row two: ..."
-    A^T, A^{\\top}: "A transpose"
-    A^{-1}: "A inverse", |A|: "determinant of A"
-    Probability and Statistics:
-    P(A): "probability of A", E[X]: "expected value of X"
-    Var(X), Cov(X,Y), P(A|B): "probability of A given B"
-    \\sim: "is distributed as", \\mathcal{N}(\\mu, \\sigma^2): "normal distribution with mean mu and variance sigma squared"
-    Deep Learning and Machine Learning Notation:
-    \\mathcal{L}: "loss function"
-    \\nabla_{\\theta}: "gradient with respect to theta"
-    \\partial: "partial"
-    \\delta, \\Delta: "delta", "capital delta"
-    W, b: "weights", "bias"
-    \\hat{y}: "y hat" (predicted output)
-    y^{(i)}: "y superscript i" or "label for sample i"
-    X^{(i)}: "x superscript i" or "input for sample i"
-    z^{[l]}: "z at layer l", a^{[l]}: "activation at layer l"
-    \\sigma(z): "sigma of z" or "activation function of z"
-    \\text{ReLU}, \\text{softmax}: read as-is
-    \\argmax, \\argmin: "arg max", "arg min"
-    \\mathbb{E}: "expected value"
-    \\mathcal{D}: "dataset D"
-    \\theta, \\phi: "theta", "phi" (parameters)
-    \\mathrm{d}: "d" (for integrals or derivatives)
-    Interpretation Principles:
-
-    Use context for best phrasing.
-    Never speak internal formatting like LaTeX commands.
-    Avoid repeating math syntax; just describe the meaning clearly.
-    Maintain smooth phrasing for nested expressions.
-    Favor what a tutor would say aloud when explaining.
-    If the content includes programming syntax (e.g., loops, function calls, variables), return a spoken English summary suitable for TTS.
-    Otherwise, return the input text exactly as-is—unchanged and unformatted.
-
-Content:
-\`\`\`
-${contentForLLM}
-\`\`\`
-
-Processed text:`;
+    const promptContent = buildPromptContent(promptType, customPrompt, contentForLLM);
 
     console.log("Background: LLM prompt constructed.");
 
@@ -710,12 +724,16 @@ async function autoProcessSelection() {
       "geminiApiUrl",
       "ollamaApiUrl",
       "ollamaModel",
+      "promptType",
+      "customPrompt",
     ]);
     const aiModel = storage.aiModel || "gemini";
     const geminiApiKey = storage.geminiApiKey;
     const geminiApiUrl = storage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
     const ollamaApiUrl = storage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
     const ollamaModel = storage.ollamaModel || "llama3.2:latest";
+    const promptType = storage.promptType || "default";
+    const customPrompt = storage.customPrompt || "";
 
     if (aiModel === "gemini" && !geminiApiKey) {
       console.error("Background: No Gemini API key found for auto-processing.");
@@ -733,166 +751,7 @@ async function autoProcessSelection() {
     let contentForLLM =
       lastSelectedHtmlBlock.selectedHtml || lastSelectedHtmlBlock.selectedText;
 
-    let promptContent = `You're a text processing assistant for our text-to-speech system. Your main goal is to get text ready to be spoken clearly and naturally. Here's how to handle different kinds of content:
-
-    1.  **Mathematical Notations (LaTeX, MathJax, mathematical symbols like ∑, ∫, π, etc.):** Convert them to spoken English naturally and unambiguously, prioritizing standard mathematical pronunciation common in Machine Learning and Deep Learning contexts.
-
-        * **Basic Symbols and Operations:**
-            * \`+\`: "plus"
-            * \`-\`: "minus"
-            * \`*\` (or \`\\\\cdot\`, \`\\\\times\`): "times"
-            * \`/\` (or \`\\\\frac{a}{b}\`): "divided by", "over", or "a over b" (e.g., \`\\\\frac{1}{2}\` becomes "one half", \`\\\\frac{x+y}{2}\` becomes "x plus y over two")
-            * \`=\`: "equals"
-            * \`!=\` or \`\\\\neq\`: "is not equal to"
-            * \`<\`: "is less than"
-            * \`>\`: "is greater than"
-            * \`<=\` or \`\\\\le\`: "is less than or equal to"
-            * \`>=\` or \`\\\\ge\`: "is greater than or equal to"
-            * \`\\\\approx\` or \`\\\\approxeq\`: "is approximately equal to"
-            * \`\\\\equiv\`: "is equivalent to"
-            * \`\\\\propto\`: "is proportional to"
-            * \`\\\\implies\`: "implies"
-            * \`\\\\iff\`: "if and only if"
-            * \`%\`: "percent"
-
-        * **Variables and Constants (ML/DL Context):**
-            * Single Latin letters (e.g., \`x\`, \`y\`, \`a\`): Pronounce as the letter (e.g., "x", "y", "a").
-            * **Bold Latin letters (e.g., \`\\\\mathbf{x}\`, \`\\\\boldsymbol{w}\`): "bold x", "bold w", or "vector x", "vector w". Use "vector" if the context clearly refers to a vector quantity, otherwise "bold".**
-            * Greek letters (e.g., \`\\\\alpha\`, \`\\\\beta\`, \`\\\\gamma\`, \`\\\\theta\`, \`\\\\sigma\`, \`\\\\mu\`, \`\\\\lambda\`, \`\\\\omega\`): Pronounce their names (e.g., "alpha", "beta", "gamma", "theta", "sigma", "mu", "lambda", "omega").
-            * \`\\\\pi\`: "pi"
-            * \`e\`: "e" (Euler's number)
-            * \`i\` (for imaginary unit): "i" or "imaginary i"
-            * \`\\\\infty\`: "infinity"
-            * \`N\`: "capital N" (often for number of samples)
-            * \`D\`: "capital D" (often for number of features/dimensions)
-            * \`K\`: "capital K" (often for number of classes)
-
-        * **Exponents and Roots:**
-            * \`x^2\`: "x squared"
-            * \`x^3\`: "x cubed"
-            * \`x^n\`: "x to the power of n" or "x to the n"
-            * \`x^{-1}\`: "x to the power of minus one" or "x inverse"
-            * \`x^{a+b}\`: "x to the power of a plus b"
-            * \`\\\\sqrt{x}\`: "square root of x"
-            * \`\\\\sqrt[n]{x}\`: "n-th root of x"
-
-        * **Subscripts and Superscripts (ML/DL Context):**
-            * \`x_i\`: "x sub i" or "x i" (for index)
-            * \`x_{ij}\`: "x sub i j"
-            * \`x^{(i)}\`: "x superscript i" or "x left parenthesis i right parenthesis" (for sample index)
-            * \`x_i^{(j)}\`: "x sub i superscript j" or "x sub i left parenthesis j right parenthesis"
-            * \`i^{\\\\text{th}}\`: "i-th"
-            * \`j^{\\\\text{th}}\`: "j-th"
-
-        * **Functions and Operators (ML/DL Context):**
-            * \`f(x)\`: "f of x"
-            * \`\\\\sin(x)\`: "sine of x" or "sin x"
-            * \`\\\\cos(x)\`: "cosine of x" or "cos x"
-            * \`\\\\tan(x)\`: "tangent of x" or "tan x"
-            * \`\\\\log(x)\`: "log of x" or "log x"
-            * \`\\\\ln(x)\`: "natural log of x" or "ln x"
-            * \`\\\\exp(x)\` or \`e^x\`: "e to the x" or "exponential of x"
-            * \`\\\\sum\`: "sum" or "summation" (add "from lower limit to upper limit" if bounds are present)
-            * \`\\\\sum_{i=1}^n\`: "sum from i equals one to n"
-            * \`\\\\prod\`: "product" or "product from" (add "from lower limit to upper limit" if bounds are present)
-            * \`\\\\int\`: "integral" (add "from lower limit to upper limit" if bounds are present)
-            * \`\\\\int_a^b\`: "integral from a to b"
-            * \`\\\\partial\`: "partial derivative" or "partial"
-            * \`\\\\frac{\\\\partial f}{\\\\partial x}\`: "partial f with respect to x"
-            * \`\\\\nabla\`: "nabla" or "del" (for gradient operator)
-            * \`\\\\hat{y}\`: "y hat", **"y-predicted"**, or "y-estimated" (prefer "y-predicted" in ML/DL)
-            * \`\\\\tilde{x}\`: "x tilde"
-            * \`\\\\bar{x}\`: "x bar" or "mean x"
-            * \`\\\\max\`: "max" or "maximum"
-            * \`\\\\min\`: "min" or "minimum"
-            * \`\\\\arg\\max\`: "argument of the maximum" or "arg max"
-            * \`\\\\arg\\min\`: "argument of the minimum" or "arg min"
-            * **Common activation functions**:
-                * \`\\\\sigma(x)\`: "sigmoid of x"
-                * \`\\\\tanh(x)\`: "hyperbolic tangent of x" or "tanh of x"
-                * \`\\\\text{ReLU}(x)\`: "ReLU of x" or "Rectified Linear Unit of x"
-
-        * **Set Theory and Logic:**
-            * \`\\\\in\`: "is an element of" or "is in"
-            * \`\\\\notin\`: "is not an element of"
-            * \`\\\\subseteq\`: "is a subset of"
-            * \`\\\\subset\`: "is a proper subset of"
-            * \`\\\\supseteq\`: "is a superset of"
-            * \`\\\\supset\`: "is a proper superset of"
-            * \`\\\\cup\`: "union"
-            * \`\\\\cap\`: "intersection"
-            * \`\\\\emptyset\` or \`\\\\varnothing\`: "empty set"
-            * \`\\\\setminus\` or \`-\` (for set difference): "set minus" or "without" (e.g., "A set minus B")
-            * \`A^c\` or \`A'\`: "complement of A"
-            * \`\\\\times\` (for Cartesian product): "Cartesian product" (e.g., "A times B")
-            * \`|A|\` (cardinality of a set): "cardinality of A" or "size of A"
-
-        * **Special Sets:**
-            * \`\\\\mathbb{N}\` (or \`\\\\text{N}\`): "the set of natural numbers"
-            * \`\\\\mathbb{Z}\` (or \`\\\\text{Z}\`): "the set of integers"
-            * \`\\\\mathbb{Q}\` (or \`\\\\text{Q}\`): "the set of rational numbers"
-            * \`\\\\mathbb{R}\` (or \`\\\\text{R}\`): "the set of real numbers"
-            * \`\\\\mathbb{C}\` (or \`\\\\text{C}\`): "the set of complex numbers"
-            * \`\\\\mathbb{I}\` (often used for irrational numbers): "the set of irrational numbers"
-            * \`\\\\emptyset\` or \`\\\\varnothing\`: "the empty set"
-
-        * **Brackets and Delimiters:**
-            * \`()\`: "open parenthesis", "close parenthesis", or imply grouping (e.g., "x plus y in parentheses")
-            * \`[]\`: "open bracket", "close bracket", or imply grouping/interval (e.g., "x plus y in brackets", "closed interval from a to b")
-            * \`{}\`: "open curly brace", "close curly brace", or "set of" (e.g., \`{a, b, c}\` becomes "the set containing a, b, c")
-            * \`|x|\` (absolute value): "absolute value of x"
-            * \`\\\\|x\\\\|\` (norm, especially for vectors/matrices): "norm of x" or "L2 norm of x" (if specific norm is contextually implied)
-            * \`\\\\langle x, y \\\\rangle\` (inner product/angle brackets): "inner product of x and y" or "dot product of x and y"
-
-        * **Vectors and Matrices (ML/DL Core):**
-            * \`\\\\begin{pmatrix} ... \\\\end{pmatrix}\` or \`\\\\begin{bmatrix} ... \\\\end{bmatrix}\`: Describe as a "matrix" followed by rows (e.g., "matrix, row one: a, b; row two: c, d")
-            * \`\\\\mathbf{v}\`: "vector v"
-            * \`\\\\mathbf{A}\`: "matrix A"
-            * **\`A^T\` or \`A^{\\\\mathsf{T}}\` or \`A^{\\\\top}\` (for transpose): "A transpose" or "A superscript T". When referring to vectors (e.g., \`\\\\mathbf{w}^{\\\\top}\`), always use "transpose".**
-            * \`A'\`: "A prime" (for transformed matrix/vector) or "A transpose" (context dependent, prefer "A transpose" in linear algebra context of ML/DL).
-            * \`A^{-1}\`: "A inverse" or "inverse of A"
-            * \`\\\\text{det}(A)\` or \`|A|\` (determinant): "determinant of A"
-            * \`I\` (identity matrix): "identity matrix"
-            * \`\\\\mathbf{0}\`: "zero vector" or "zero matrix" (depending on context)
-            * \`\\\\text{diag}(v)\`: "diagonal matrix from vector v"
-
-        * **Probability and Statistics (ML/DL Context):**
-            * \`P(A)\`: "Probability of A"
-            * \`E[X]\`: "Expected value of X" or "Expectation of X"
-            * \`Var(X)\`: "Variance of X"
-            * \`Cov(X, Y)\`: "Covariance of X and Y"
-            * \`P(A|B)\`: "Probability of A given B"
-            * \`E[Y|X=\\\\mathbf{x}]\`: "Expected value of Y given X equals bold x"
-            * \`\\\\mu\`: "mu" (often for mean)
-            * \`\\\\sigma\`: "sigma" (often for standard deviation)
-            * \`\\\\rho\`: "rho" (often for correlation)
-            * \`\\\\sim\`: "follows the distribution" or "is distributed as" (e.g., "X follows a Normal distribution")
-            * \`\\\\mathcal{N}(\\\\mu, \\\\sigma^2)\`: "Normal distribution with mean mu and variance sigma squared"
-            * \`KL(P || Q)\`: "KL divergence between P and Q" or "Kullback-Leibler divergence between P and Q"
-            * \`H(X)\`: "entropy of X"
-            * \`L(w)\`: "Loss function L of w" or "Loss L of w" (for loss functions)
-            * \`J(w)\`: "Cost function J of w" or "Cost J of w"
-
-        * **General Principles for Interpretation in ML/DL:**
-            * **Context is Paramount:** Always use context to determine the most natural pronunciation. For instance, \`A'\` in a general math context might be "A prime", but in ML/DL, especially with matrices, it's often "A transpose".
-            * **Prioritize ML/DL Terminology:** When a notation has a specific, widely-used term in ML/DL (e.g., "predicted y" for \`\\\\hat{y}\`, "transpose" for \`\\\\top\`), favor that over a more generic mathematical reading.
-            * **Clarity over Brevity:** If there's any ambiguity, opt for a more descriptive pronunciation.
-            * **Avoid Literal Character Reading:** Never read out internal formatting or LaTeX commands (e.g., \`\\\\mjx-container\`). Focus purely on the semantic mathematical meaning.
-            * **Pause for Complex Expressions:** For very long or nested expressions, a slight pause can significantly improve comprehension.
-            * **Conciseness for Common Terms:** For very common terms, use the more concise spoken form (e.g., "arg max" instead of "argument of the maximum" unless specified).
-
-    2.  If the content appears to be a code block (contains programming syntax, function definitions, variable declarations, etc.), provide a brief summary of what the code does in plain English suitable for TTS.
-
-    3.  For all other normal text content, return it EXACTLY as provided without any changes or summarization.
-
-    Do not add any extra explanations, headers, new lines "(\n or \r\n)" or formatting. Do not convert the text to Markdown.Just return the processed text as a single, continuous line. Absolutely no line breaks, carriage returns, or extra whitespace characters. Ensure the final output is one continuous string.
-
-    Content:
-    \`\`\`
-    ${contentForLLM}
-    \`\`\`
-
-    Processed text:`;
+    const promptContent = buildPromptContent(promptType, customPrompt, contentForLLM);
 
     startProcessingAnimation();
     let response, data, processedText;

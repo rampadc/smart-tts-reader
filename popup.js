@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  const selectedTextDisplay = document.getElementById("selectedTextDisplay");
   const selectHtmlBlockButton = document.getElementById("selectHtmlBlock");
   const statusDiv = document.getElementById("status");
   const errorDiv = document.getElementById("error");
@@ -14,6 +13,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const ollamaConfig = document.getElementById("ollamaConfig");
   const saveAiConfigButton = document.getElementById("saveAiConfig");
   const aiConfigStatusDiv = document.getElementById("aiConfigStatus");
+
+  const defaultPromptRadio = document.getElementById("defaultPromptRadio");
+  const customPromptRadio = document.getElementById("customPromptRadio");
+  const customPromptConfig = document.getElementById("customPromptConfig");
+  const customPromptInput = document.getElementById("customPrompt");
+  const templateSelect = document.getElementById("templateSelect");
+  const loadTemplateButton = document.getElementById("loadTemplate");
+  const savePromptConfigButton = document.getElementById("savePromptConfig");
+  const promptConfigStatusDiv = document.getElementById("promptConfigStatus");
 
   const ttsApiUrlInput = document.getElementById("ttsApiUrl");
   const ttsApiKeyInput = document.getElementById("ttsApiKey");
@@ -44,12 +52,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     "ollamaApiUrl",
     "ollamaModel",
     "aiModel",
+    "promptType",
+    "customPrompt",
   ]);
   const storedApiKey = storage.geminiApiKey;
   const storedApiUrl = storage.geminiApiUrl;
   const storedOllamaUrl = storage.ollamaApiUrl;
   const storedOllamaModel = storage.ollamaModel;
   const storedAiModel = storage.aiModel || "gemini";
+  const storedPromptType = storage.promptType || "default";
+  const storedCustomPrompt = storage.customPrompt || "";
 
   // Set AI model radio selection
   if (storedAiModel === "ollama") {
@@ -73,6 +85,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Set Ollama configuration
   ollamaApiUrlInput.value = storedOllamaUrl || "http://localhost:11434";
   ollamaModelInput.value = storedOllamaModel || "llama3.2:latest";
+
+  // Set prompt configuration
+  if (storedPromptType === "custom") {
+    customPromptRadio.checked = true;
+    customPromptConfig.style.display = "block";
+  } else {
+    defaultPromptRadio.checked = true;
+    customPromptConfig.style.display = "none";
+  }
+  customPromptInput.value = storedCustomPrompt;
+
+  // Set initial prompt status
+  if (storedPromptType === "custom" && storedCustomPrompt) {
+    promptConfigStatusDiv.textContent = "Custom prompt loaded.";
+    promptConfigStatusDiv.style.color = "green";
+  } else {
+    promptConfigStatusDiv.textContent = "Using default prompt.";
+    promptConfigStatusDiv.style.color = "gray";
+  }
 
   // Set status message
   if (storedAiModel === "ollama") {
@@ -139,6 +170,63 @@ document.addEventListener("DOMContentLoaded", async () => {
       geminiConfig.style.display = "none";
       ollamaConfig.style.display = "block";
     }
+  });
+
+  // Handle prompt type radio button changes
+  defaultPromptRadio.addEventListener("change", () => {
+    if (defaultPromptRadio.checked) {
+      customPromptConfig.style.display = "none";
+    }
+  });
+
+  customPromptRadio.addEventListener("change", () => {
+    if (customPromptRadio.checked) {
+      customPromptConfig.style.display = "block";
+    }
+  });
+
+  // Prompt template functionality
+  const promptTemplates = {
+    summarize: "Summarize the following content in clear, concise language suitable for text-to-speech:\n\n${content}\n\nSummary:",
+    explain: "Explain the following content in simple terms that anyone can understand:\n\n${content}\n\nSimple explanation:",
+    bullets: "Extract the key points from the following content and present them as a clear, spoken list:\n\n${content}\n\nKey points:"
+  };
+
+  loadTemplateButton.addEventListener("click", () => {
+    const selectedTemplate = templateSelect.value;
+    if (selectedTemplate && promptTemplates[selectedTemplate]) {
+      customPromptInput.value = promptTemplates[selectedTemplate];
+      customPromptRadio.checked = true;
+      customPromptConfig.style.display = "block";
+      templateSelect.value = "";
+    }
+  });
+
+  savePromptConfigButton.addEventListener("click", async () => {
+    const promptType = defaultPromptRadio.checked ? "default" : "custom";
+    const customPrompt = customPromptInput.value.trim();
+
+    if (promptType === "custom" && !customPrompt) {
+      promptConfigStatusDiv.textContent = "Custom prompt cannot be empty.";
+      promptConfigStatusDiv.style.color = "red";
+      return;
+    }
+
+    if (promptType === "custom" && !customPrompt.includes("${content}")) {
+      promptConfigStatusDiv.textContent = "Custom prompt should include ${content} placeholder.";
+      promptConfigStatusDiv.style.color = "red";
+      return;
+    }
+
+    await browser.storage.sync.set({
+      promptType: promptType,
+      customPrompt: customPrompt,
+    });
+
+    promptConfigStatusDiv.textContent = promptType === "custom" ? 
+      "Custom prompt saved!" : "Using default prompt.";
+    promptConfigStatusDiv.style.color = "green";
+    console.log("Popup: Saved prompt configuration - Type:", promptType);
   });
 
   saveAiConfigButton.addEventListener("click", async () => {
@@ -319,8 +407,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Popup: Background reports full HTML available:",
         currentSelection.selectedHtml !== "",
       );
-      selectedTextDisplay.textContent = currentSelection.selectedText;
-      
       // Get current AI configuration
       const currentAiConfig = await browser.storage.sync.get([
         "aiModel",
@@ -338,11 +424,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           geminiApiUrl: currentAiConfig.geminiApiUrl,
           ollamaApiUrl: currentAiConfig.ollamaApiUrl,
           ollamaModel: currentAiConfig.ollamaModel,
+          promptType: currentAiConfig.promptType || "default",
+          customPrompt: currentAiConfig.customPrompt || "",
         }
       ); // Call processing
     } else {
-      selectedTextDisplay.textContent =
-        'No content selected yet. Click "Select HTML Block" to choose content from the page.';
       statusDiv.textContent = "Select an HTML block to begin.";
       console.log(
         "Popup: No current selection found in background on initial load. Awaiting user action.",
@@ -357,7 +443,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   window.updateSelection = async function (selectedText, selectedHtml) {
     console.log("Popup: updateSelection called directly by background script.");
-    selectedTextDisplay.textContent = selectedText;
     statusDiv.textContent = "HTML block selected. Processing...";
     errorDiv.textContent = "";
     console.log(
@@ -372,6 +457,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       "geminiApiUrl",
       "ollamaApiUrl",
       "ollamaModel",
+      "promptType",
+      "customPrompt",
     ]);
     
     await processLoadedText(
@@ -382,6 +469,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiUrl: currentAiConfig.geminiApiUrl,
         ollamaApiUrl: currentAiConfig.ollamaApiUrl,
         ollamaModel: currentAiConfig.ollamaModel,
+        promptType: currentAiConfig.promptType || "default",
+        customPrompt: currentAiConfig.customPrompt || "",
       }
     ); // Call processing
   };
@@ -469,6 +558,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiUrl: aiConfig.geminiApiUrl,
         ollamaApiUrl: aiConfig.ollamaApiUrl,
         ollamaModel: aiConfig.ollamaModel,
+        promptType: aiConfig.promptType,
+        customPrompt: aiConfig.customPrompt,
       });
       console.log(
         'Popup: "processText" message sent to background script for automatic process.',

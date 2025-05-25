@@ -112,23 +112,7 @@ h2 {
   border: 1px solid #e9ecef;
 }
 
-.selected-text-display {
-  width: 100%;
-  padding: 12px;
-  margin-top: 8px;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: inherit;
-  background-color: #ffffff;
-  color: #495057;
-  min-height: 80px;
-  max-height: 200px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  box-sizing: border-box;
-}
+
 
 .text-selection button {
   width: 100%;
@@ -215,5 +199,108 @@ h2 {
 
 .config-section input {
   margin-bottom: 10px;
+}
+
+.prompt-settings {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.prompt-selection {
+  margin-bottom: 16px;
+}
+
+.config-section textarea {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.config-section textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.prompt-help {
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.prompt-help code {
+  background-color: #e9ecef;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+}
+
+.config-section select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.config-section select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+#loadTemplate {
+  width: 100%;
+  padding: 6px 12px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+#loadTemplate:hover {
+  background-color: #5a6268;
+}
+
+#loadTemplate:active {
+  background-color: #545b62;
+}
+
+.template-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dee2e6;
+}
+
+.template-section label {
+  margin-bottom: 4px;
+}
+
+.template-section select {
+  margin-bottom: 8px;
+}
+
+.template-section button {
+  margin-bottom: 0;
 }
 </edits>
