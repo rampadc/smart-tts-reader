@@ -1,5 +1,3 @@
-// This script runs in the background and handles API calls and TTS
-
 // Processing animation
 let animationInterval;
 let frame = 0;
@@ -119,8 +117,41 @@ const DEFAULT_PROMPT_CONTENT = `You're a text-processing assistant for our text-
           dropout(x, rate): "dropout of x with rate"
           loss(y_true, y_pred): "loss of y true and y predicted"
           grad_ij(f(W), w_ij): "partial derivative of f of W with respect to W at position i, j"
-          Interpretation Principles:
 
+          HTML Structure and Elements:
+          Headings (<h1> to <h6>): Read naturally with appropriate pauses
+          Lists:
+          - <ul>: Convert to flowing speech with natural pauses
+          - <ol>: Include sequence ("First, ", "Second, ", etc.)
+          - <li>: Connect list items smoothly
+          Tables (<table>):
+          - <th>: Emphasize header cells
+          - <tr>, <td>: Convert to natural spoken description
+          Math Content:
+          - <math>: Apply mathematical reading rules as defined above
+          - $...$ and $$...$$: Process as mathematical expressions
+          - \\(...\\) and \\[...\\]: Handle as inline and display math
+          Code Elements:
+          - <pre>: Prepare code blocks for clear speech
+          - <code>: Apply programming syntax rules
+          Text Structure:
+          - <p>: Natural paragraph breaks
+          - <br>: Brief pause
+          - <blockquote>: Indicate quoted content
+          - <em>, <i>: Subtle emphasis
+          - <strong>, <b>: Stronger emphasis
+          Special Elements:
+          - <sup>: Read as "superscript" or appropriate mathematical form
+          - <sub>: Read as "subscript" or appropriate mathematical form
+          - <mark>: Indicate highlighted content
+          - <a>: Handle links naturally without URLs
+          - <img>: Read alt text if present
+          Tables and Figures:
+          - <figure>: Include captions naturally
+          - <figcaption>: Integrate with figure description
+          - <caption>: Read table captions clearly
+
+          Interpretation Principles:
           Use context for best phrasing.
           Never speak internal formatting like LaTeX commands.
           Avoid repeating math syntax; just describe the meaning clearly.
@@ -253,26 +284,25 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sender.id || "self",
   );
 
-
-
   if (request.action === "storeSelectedHtmlBlock") {
-    console.log("Background: Received HTML block from content script, length:", request.html.length);
-    
-    // Extract text from HTML immediately
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = request.html;
-    const textContent = tempDiv.innerText || tempDiv.textContent || '';
-    
-    if (textContent && textContent.trim()) {
-      console.log("Background: Processing HTML block immediately, text length:", textContent.length);
-      
+    console.log(
+      "Background: Received HTML block from content script, length:",
+      request.html.length,
+    );
+
+    if (request.html && request.html.trim()) {
+      console.log(
+        "Background: Processing HTML block immediately, length:",
+        request.html.length,
+      );
+
       // Get AI configuration and process immediately
       (async () => {
         try {
           const aiStorage = await browser.storage.sync.get([
             "geminiApiKey",
             "geminiApiUrl",
-            "ollamaApiUrl", 
+            "ollamaApiUrl",
             "ollamaModel",
             "aiModel",
             "promptType",
@@ -299,27 +329,33 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           // Process with AI immediately
           const result = await handleProcessText(
-            textContent,
+            request.html, // Send the HTML directly
             aiModel,
             geminiApiKey,
             geminiApiUrl,
             ollamaApiUrl,
             ollamaModel,
             promptType,
-            customPrompt
+            customPrompt,
           );
 
           if (result.error) {
-            console.error("Background: Error processing HTML block:", result.error);
+            console.error(
+              "Background: Error processing HTML block:",
+              result.error,
+            );
           } else {
             console.log("Background: HTML block processed successfully");
           }
         } catch (error) {
-          console.error("Background: Error in immediate HTML block processing:", error);
+          console.error(
+            "Background: Error in immediate HTML block processing:",
+            error,
+          );
         }
       })();
     }
-    
+
     sendResponse({ success: true });
     return true;
   }
@@ -426,6 +462,11 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   ],
                 },
               ],
+              generationConfig: {
+                temperature: 0.7,
+                topP: 0.8,
+                topK: 40,
+              },
             }),
           });
 
@@ -628,7 +669,9 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
         );
       });
   } else if (info.menuItemId === "processSelectedText") {
-    console.log("Background: Context menu 'Process Selected Text + HTML Context' clicked");
+    console.log(
+      "Background: Context menu 'Process Selected Text + HTML Context' clicked",
+    );
     selectionFromPopup = false; // Mark as context menu selection
     // Send message to content script to get selected text and containing HTML blocks
     browser.tabs
@@ -638,10 +681,9 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
           console.log(
             "Background: Received multi-block selection from content script",
           );
-          // Process immediately without storing
-          const textContent = response.text;
+          // Process HTML blocks immediately (selected text is just for identification)
           const htmlContent = response.html;
-          
+
           if (htmlContent && htmlContent.trim()) {
             // Process HTML content with context immediately
             (async () => {
@@ -649,7 +691,7 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
                 const aiStorage = await browser.storage.sync.get([
                   "geminiApiKey",
                   "geminiApiUrl",
-                  "ollamaApiUrl", 
+                  "ollamaApiUrl",
                   "ollamaModel",
                   "aiModel",
                   "promptType",
@@ -657,27 +699,25 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
                 ]);
 
                 const geminiApiKey = aiStorage.geminiApiKey;
-                const geminiApiUrl = aiStorage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
-                const ollamaApiUrl = aiStorage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
+                const geminiApiUrl =
+                  aiStorage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
+                const ollamaApiUrl =
+                  aiStorage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
                 const ollamaModel = aiStorage.ollamaModel || "llama3.2:latest";
                 const aiModel = aiStorage.aiModel || "gemini";
                 const promptType = aiStorage.promptType || "default";
                 const customPrompt = aiStorage.customPrompt || "";
 
-                // Extract text from HTML for processing
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = htmlContent;
-                const processText = tempDiv.innerText || tempDiv.textContent || textContent;
-
+                // Send HTML directly to LLM
                 const result = await handleProcessText(
-                  processText,
+                  htmlContent,
                   aiModel,
                   geminiApiKey,
                   geminiApiUrl,
                   ollamaApiUrl,
                   ollamaModel,
                   promptType,
-                  customPrompt
+                  customPrompt,
                 );
 
                 if (result.error) {
@@ -696,7 +736,10 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
                   });
                 }
               } catch (error) {
-                console.error("Background: Error processing HTML context selection:", error);
+                console.error(
+                  "Background: Error processing HTML context selection:",
+                  error,
+                );
                 browser.notifications.create({
                   type: "basic",
                   iconUrl: "icons/icon-48.png",
@@ -717,87 +760,6 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-async function autoProcessSelection() {
-  console.log("Background: autoProcessSelection called");
-  
-  try {
-    // This function is now mainly used for context menu selections
-    // HTML block selections are processed immediately in storeSelectedHtmlBlock
-    
-    // Get current tab for text selection
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      throw new Error("No active tab found");
-    }
-
-    // Get text selection from content script
-    const selectionResponse = await browser.tabs.sendMessage(tab.id, {
-      action: "getSelectedText"
-    });
-
-    if (!selectionResponse || !selectionResponse.success) {
-      throw new Error("No text selected or could not get selection");
-    }
-
-    const selectedText = selectionResponse.text;
-    if (!selectedText || selectedText.trim() === "") {
-      throw new Error("No text selected");
-    }
-
-    console.log("Background: Processing selected text, length:", selectedText.length);
-
-    // Get AI configuration
-    const aiStorage = await browser.storage.sync.get([
-      "geminiApiKey",
-      "geminiApiUrl",
-      "ollamaApiUrl", 
-      "ollamaModel",
-      "aiModel",
-      "promptType",
-      "customPrompt",
-    ]);
-
-    const geminiApiKey = aiStorage.geminiApiKey;
-    const geminiApiUrl = aiStorage.geminiApiUrl || DEFAULT_GEMINI_API_URL;
-    const ollamaApiUrl = aiStorage.ollamaApiUrl || DEFAULT_OLLAMA_API_URL;
-    const ollamaModel = aiStorage.ollamaModel || "llama3.2:latest";
-    const aiModel = aiStorage.aiModel || "gemini";
-    const promptType = aiStorage.promptType || "default";
-    const customPrompt = aiStorage.customPrompt || "";
-
-    // Validate AI configuration
-    if (aiModel === "gemini" && (!geminiApiKey || !geminiApiUrl)) {
-      throw new Error("Gemini API key or URL not configured");
-    }
-    if (aiModel === "ollama" && (!ollamaApiUrl || !ollamaModel)) {
-      throw new Error("Ollama API URL or model not configured");
-    }
-
-    // Process with AI
-    const processResult = await handleProcessText(
-      selectedText,
-      aiModel,
-      geminiApiKey,
-      geminiApiUrl,
-      ollamaApiUrl,
-      ollamaModel,
-      promptType,
-      customPrompt
-    );
-
-    if (processResult.error) {
-      throw new Error(processResult.error);
-    }
-
-    console.log("Background: Auto-processing completed successfully");
-    return processResult;
-
-  } catch (error) {
-    console.error("Background: Error in autoProcessSelection:", error);
-    throw error;
-  }
-}
-
 async function handleProcessText(
   text,
   aiModel,
@@ -817,118 +779,150 @@ async function handleProcessText(
 
   console.log("Background: LLM prompt constructed.");
 
+  // Add timeout for LLM
+  const timeout = 45000; // 45 seconds
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("LLM request timed out")), timeout);
+  });
+
   try {
     startProcessingAnimation();
-    let response, data, processedText;
 
-    if (aiModel === "gemini") {
-      console.log("Background: Attempting fetch to Gemini API:", geminiApiUrl);
+    const result = await Promise.race([
+      (async () => {
+        let response, data, processedText;
 
-      response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
+        if (aiModel === "gemini") {
+          console.log(
+            "Background: Attempting fetch to Gemini API:",
+            geminiApiUrl,
+          );
+
+          response = await fetch(`${geminiApiUrl}?key=${geminiApiKey}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
                 {
-                  text: promptContent,
+                  parts: [
+                    {
+                      text: promptContent,
+                    },
+                  ],
                 },
               ],
+              generationConfig: {
+                temperature: 0.7,
+                topP: 0.8,
+                topK: 40,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(
+              "Background: Gemini API error:",
+              response.status,
+              errorText,
+            );
+            stopProcessingAnimation();
+            return {
+              error: `Gemini API error: ${response.statusText}. Please check your API key and URL.`,
+            };
+          }
+
+          data = await response.json();
+          processedText = data.candidates[0].content.parts[0].text;
+        } else if (aiModel === "ollama") {
+          console.log(
+            "Background: Attempting fetch to Ollama API:",
+            ollamaApiUrl,
+          );
+
+          const ollamaEndpoint = ollamaApiUrl.endsWith("/")
+            ? ollamaApiUrl + "api/generate"
+            : ollamaApiUrl + "/api/generate";
+
+          response = await fetch(ollamaEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
             },
-          ],
-        }),
-      });
+            body: JSON.stringify({
+              model: ollamaModel,
+              prompt: promptContent,
+              stream: false,
+            }),
+          });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          "Background: Gemini API error:",
-          response.status,
-          errorText,
-        );
-        stopProcessingAnimation();
-        return {
-          error: `Gemini API error: ${response.statusText}. Please check your API key and URL.`,
-        };
-      }
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(
+              "Background: Ollama API error:",
+              response.status,
+              errorText,
+            );
+            stopProcessingAnimation();
+            return {
+              error: `Ollama API error: ${response.statusText}. Make sure Ollama is running and the model is available.`,
+            };
+          }
 
-      data = await response.json();
-      processedText = data.candidates[0].content.parts[0].text;
-    } else if (aiModel === "ollama") {
-      console.log("Background: Attempting fetch to Ollama API:", ollamaApiUrl);
-
-      const ollamaEndpoint = ollamaApiUrl.endsWith("/")
-        ? ollamaApiUrl + "api/generate"
-        : ollamaApiUrl + "/api/generate";
-
-      response = await fetch(ollamaEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: ollamaModel,
-          prompt: promptContent,
-          stream: false,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          "Background: Ollama API error:",
-          response.status,
-          errorText,
-        );
-        stopProcessingAnimation();
-        return {
-          error: `Ollama API error: ${response.statusText}. Make sure Ollama is running and the model is available.`,
-        };
-      }
-
-      data = await response.json();
-      processedText = data.response;
-    }
-
-    console.log("Background: Fetch request sent. Checking response status.");
-
-    if (processedText) {
-      console.log(
-        "Background: LLM processed text (before TTS):",
-        processedText.trim(),
-      );
-
-      // Automatically send to TTS after AI processing
-      console.log("Background: Automatically sending to TTS...");
-      try {
-        const ttsResult = await processTextWithTTS(processedText.trim());
-        stopProcessingAnimation();
-        if (ttsResult && ttsResult.error) {
-          return { error: ttsResult.error };
+          data = await response.json();
+          processedText = data.response;
         }
-        console.log("Background: TTS playback started successfully");
-        return {
-          processedText: processedText.trim(),
-          ttsSuccess: true,
-        };
-      } catch (ttsError) {
-        console.error("Background: TTS error:", ttsError);
-        return {
-          processedText: processedText.trim(),
-          error: "TTS failed: " + ttsError.message,
-        };
-      }
-    } else {
-      console.warn("Background: No processed text received from LLM");
-      stopProcessingAnimation();
-      return { error: "No processed text received from LLM" };
-    }
+
+        console.log(
+          "Background: Fetch request sent. Checking response status.",
+        );
+
+        if (processedText) {
+          console.log(
+            "Background: LLM processed text (before TTS):",
+            processedText.trim(),
+          );
+
+          // Automatically send to TTS after AI processing
+          console.log("Background: Automatically sending to TTS...");
+          try {
+            const ttsResult = await processTextWithTTS(processedText.trim());
+            stopProcessingAnimation();
+            if (ttsResult && ttsResult.error) {
+              return { error: ttsResult.error };
+            }
+            console.log("Background: TTS playback started successfully");
+            return {
+              processedText: processedText.trim(),
+              ttsSuccess: true,
+            };
+          } catch (ttsError) {
+            console.error("Background: TTS error:", ttsError);
+            return {
+              processedText: processedText.trim(),
+              error: "TTS failed: " + ttsError.message,
+            };
+          }
+        } else {
+          console.warn("Background: No processed text received from LLM");
+          stopProcessingAnimation();
+          return { error: "No processed text received from LLM" };
+        }
+      })(),
+      timeoutPromise,
+    ]);
+
+    return result;
   } catch (error) {
     console.error("Background: Error in handleProcessText:", error);
     stopProcessingAnimation();
+    if (error.message === "LLM request timed out") {
+      return {
+        error: "Request timed out. The LLM is taking too long to respond.",
+      };
+    }
     return { error: "Processing failed: " + error.message };
   }
 }

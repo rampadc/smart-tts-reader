@@ -48,7 +48,7 @@ function handleClick(event) {
     document.removeEventListener("keydown", handleEscape);
 
     const selectedElement = event.target;
-    const selectedHtml = selectedElement.outerHTML;
+    const selectedHtml = preprocessHTML(selectedElement.outerHTML);
     const selectedText = selectedElement.innerText;
 
     console.log(
@@ -56,7 +56,7 @@ function handleClick(event) {
       selectedText,
     );
     console.log(
-      "Content Script: HTML block selected via click. Full HTML:",
+      "Content Script: HTML block selected via click. Processed HTML:",
       selectedHtml,
     );
 
@@ -87,67 +87,90 @@ const handleEscape = (e) => {
   }
 };
 
+function preprocessHTML(html) {
+  // Create a temporary container
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+
+  // Handle math delimiters: $...$ and $$...$$
+  const mathRegex = /\$\$(.*?)\$\$|\$(.*?)\$/g;
+  temp.innerHTML = temp.innerHTML.replace(mathRegex, (match, p1, p2) => {
+    const formula = p1 || p2;
+    return `<math-expression>${formula}</math-expression>`;
+  });
+
+  // Handle LaTeX delimiters: \(...\) and \[...\]
+  const latexRegex = /\\\[(.*?)\\\]|\\\((.*?)\\\)/g;
+  temp.innerHTML = temp.innerHTML.replace(latexRegex, (match, p1, p2) => {
+    const formula = p1 || p2;
+    return `<math-expression>${formula}</math-expression>`;
+  });
+
+  // Mark code blocks
+  const codeBlocks = temp.querySelectorAll("pre, code");
+  codeBlocks.forEach((block) => {
+    block.setAttribute("type", "code-block");
+  });
+
+  // Mark math environments
+  const mathElements = temp.querySelectorAll(
+    ".math, .MathJax, .MathJax_Preview",
+  );
+  mathElements.forEach((math) => {
+    math.setAttribute("type", "math-content");
+  });
+
+  // Handle tables
+  const tables = temp.querySelectorAll("table");
+  tables.forEach((table) => {
+    table.setAttribute("speech-type", "structured-content");
+  });
+
+  // Handle lists
+  const lists = temp.querySelectorAll("ul, ol");
+  lists.forEach((list) => {
+    list.setAttribute("speech-type", "list");
+  });
+
+  return temp.innerHTML;
+}
+
 function getContainingBlocks(selection) {
   const containingElements = new Set();
-  
+  const seenText = new Set();
+
   for (let i = 0; i < selection.rangeCount; i++) {
     const range = selection.getRangeAt(i);
-    const walker = document.createTreeWalker(
-      range.commonAncestorContainer,
-      NodeFilter.SHOW_ELEMENT,
-      {
-        acceptNode: function(node) {
-          if (range.intersectsNode(node)) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-          return NodeFilter.FILTER_REJECT;
-        }
-      }
+
+    // Get only the selected content's container
+    const fragment = range.cloneContents();
+    const tempDiv = document.createElement("div");
+    tempDiv.appendChild(fragment);
+
+    // Find all relevant block elements within the selection
+    const blockElements = tempDiv.querySelectorAll(
+      "p, div, section, article, h1, h2, h3, h4, h5, h6, li, blockquote, pre, code, table, tr, td, th",
     );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      // Only include block-level elements or elements with substantial content
-      if (node.tagName && (
-        ['P', 'DIV', 'SECTION', 'ARTICLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 
-         'LI', 'BLOCKQUOTE', 'PRE', 'CODE', 'TABLE', 'TR', 'TD', 'TH'].includes(node.tagName) ||
-        (node.innerText && node.innerText.trim().length > 10)
-      )) {
-        containingElements.add(node);
+
+    if (blockElements.length > 0) {
+      // Add found block elements
+      blockElements.forEach((element) => {
+        const text = element.innerText.trim();
+        if (text.length > 0 && !seenText.has(text)) {
+          containingElements.add(element);
+          seenText.add(text);
+        }
+      });
+    } else {
+      // If no block elements found, add the selection content directly
+      const text = tempDiv.innerText.trim();
+      if (text.length > 0 && !seenText.has(text)) {
+        containingElements.add(tempDiv);
+        seenText.add(text);
       }
-    }
-    
-    // Also check start and end containers
-    let startElement = range.startContainer.nodeType === Node.ELEMENT_NODE ? 
-      range.startContainer : range.startContainer.parentElement;
-    let endElement = range.endContainer.nodeType === Node.ELEMENT_NODE ? 
-      range.endContainer : range.endContainer.parentElement;
-    
-    while (startElement && startElement !== document.body) {
-      if (startElement.tagName && (
-        ['P', 'DIV', 'SECTION', 'ARTICLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 
-         'LI', 'BLOCKQUOTE', 'PRE', 'CODE', 'TABLE', 'TR', 'TD', 'TH'].includes(startElement.tagName) ||
-        (startElement.innerText && startElement.innerText.trim().length > 10)
-      )) {
-        containingElements.add(startElement);
-        break;
-      }
-      startElement = startElement.parentElement;
-    }
-    
-    while (endElement && endElement !== document.body && endElement !== startElement) {
-      if (endElement.tagName && (
-        ['P', 'DIV', 'SECTION', 'ARTICLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 
-         'LI', 'BLOCKQUOTE', 'PRE', 'CODE', 'TABLE', 'TR', 'TD', 'TH'].includes(endElement.tagName) ||
-        (endElement.innerText && endElement.innerText.trim().length > 10)
-      )) {
-        containingElements.add(endElement);
-        break;
-      }
-      endElement = endElement.parentElement;
     }
   }
-  
+
   return Array.from(containingElements);
 }
 
@@ -160,7 +183,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         tempDiv.appendChild(selection.getRangeAt(i).cloneContents());
       }
       const plainSelectedText = tempDiv.innerText;
-      const htmlSelectedContent = tempDiv.innerHTML;
+      const htmlSelectedContent = preprocessHTML(tempDiv.innerHTML);
       console.log(
         "Content Script: Plain text selection detected:",
         plainSelectedText,
@@ -178,26 +201,35 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       const plainSelectedText = selection.toString();
-      const containingBlocks = getContainingBlocks(selection);
-      
-      // Combine HTML from all containing blocks
-      const combinedHtml = containingBlocks.map(element => element.outerHTML).join('\n');
-      
+      const blocks = getContainingBlocks(selection);
+
+      // Create a wrapper div
+      const wrapper = document.createElement("div");
+
+      // Add each block to the wrapper
+      blocks.forEach((block) => {
+        const clone = block.cloneNode(true);
+        wrapper.appendChild(clone);
+      });
+
+      // Process the HTML to handle math notation and other elements
+      const processedHtml = preprocessHTML(wrapper.innerHTML);
+
       console.log(
         "Content Script: Multi-block selection detected:",
         plainSelectedText,
       );
-      console.log(
-        "Content Script: Found", containingBlocks.length, "containing blocks"
-      );
-      
+      console.log("Content Script: Found", blocks.length, "blocks");
+
       sendResponse({
         success: true,
         text: plainSelectedText,
-        html: combinedHtml,
+        html: processedHtml,
       });
     } else {
-      console.log("Content Script: No text selection for multi-block processing.");
+      console.log(
+        "Content Script: No text selection for multi-block processing.",
+      );
       sendResponse({ success: false, text: "", html: "" });
     }
   } else if (request.action === "activateSelectionMode") {
