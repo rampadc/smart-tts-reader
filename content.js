@@ -88,22 +88,70 @@ const handleEscape = (e) => {
 };
 
 function preprocessHTML(html) {
-  // Create a temporary container
-  const temp = document.createElement("div");
-  temp.innerHTML = html;
+  // Use DOMParser instead of innerHTML for initial parsing
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+  const temp = doc.body.firstChild;
+
+  // Get all text nodes for safe text processing
+  const walker = document.createTreeWalker(
+    temp,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    textNodes.push(node);
+  }
 
   // Handle math delimiters: $...$ and $$...$$
   const mathRegex = /\$\$(.*?)\$\$|\$(.*?)\$/g;
-  temp.innerHTML = temp.innerHTML.replace(mathRegex, (match, p1, p2) => {
-    const formula = p1 || p2;
-    return `<math-expression>${formula}</math-expression>`;
-  });
-
   // Handle LaTeX delimiters: \(...\) and \[...\]
   const latexRegex = /\\\[(.*?)\\\]|\\\((.*?)\\\)/g;
-  temp.innerHTML = temp.innerHTML.replace(latexRegex, (match, p1, p2) => {
-    const formula = p1 || p2;
-    return `<math-expression>${formula}</math-expression>`;
+
+  textNodes.forEach((textNode) => {
+    let content = textNode.textContent;
+    let needsReplacement = false;
+
+    // Check if this text node contains math notation
+    if (mathRegex.test(content) || latexRegex.test(content)) {
+      needsReplacement = true;
+
+      // Apply math delimiter replacements
+      content = content.replace(mathRegex, (match, p1, p2) => {
+        const formula = p1 || p2;
+        return `<math-expression>${formula}</math-expression>`;
+      });
+
+      // Apply LaTeX delimiter replacements
+      content = content.replace(latexRegex, (match, p1, p2) => {
+        const formula = p1 || p2;
+        return `<math-expression>${formula}</math-expression>`;
+      });
+    }
+
+    if (needsReplacement) {
+      // Create replacement elements using DOMParser instead of innerHTML
+      const replacementParser = new DOMParser();
+      const replacementDoc = replacementParser.parseFromString(
+        `<div>${content}</div>`,
+        "text/html",
+      );
+      const replacement = replacementDoc.body.firstChild;
+
+      const parent = textNode.parentNode;
+
+      // Move all child nodes from replacement to parent
+      while (replacement.firstChild) {
+        parent.insertBefore(replacement.firstChild, textNode);
+      }
+
+      // Remove the original text node
+      parent.removeChild(textNode);
+    }
   });
 
   // Mark code blocks

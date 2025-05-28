@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Smart Reader",
   "id": "smart-reader-tts",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "Preprocess HTML content with math equations using Gemini AI or Ollama, then listen with OpenAI-compatible TTS",
   "permissions": [
     "activeTab",
